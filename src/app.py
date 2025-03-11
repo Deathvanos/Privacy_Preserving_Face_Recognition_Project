@@ -31,6 +31,7 @@ from PIL import Image
 import io
 import pandas as pd
 import base64
+from src.modules.utils_image import image_numpy_to_pillow, image_pillow_to_bytes
 
 
 app = Flask(__name__)
@@ -61,30 +62,39 @@ def show_database():
 
 @app.route("/new_people", methods=['POST'])
 def new_people_processing():
-    if not request.files.getlist('fileInput'):
-        print("No file part")
-        error = "No file part"
-        return  render_template('new_people.html', error=error)
+        if not request.files.getlist('fileInput'):
+            print("No file part")
+            error = "No file part"
+            return  render_template('new_people.html', error=error)
 
-    files = request.files.getlist('fileInput')
-    #print(len(request.form), request.form)
-    #print(len(files), type(files[0]), files)
+        files = request.files.getlist('fileInput')
+        #print(len(request.form), request.form)
+        #print(len(files), type(files[0]), files)
 
-    file_urls = []
-    for file in files:
-        pillow_image = Image.open(io.BytesIO(file.read()))
-        file_urls.append(pillow_image)
-    #print(file_urls)
+        file_urls = []
+        for file in files:
+            pillow_image = Image.open(io.BytesIO(file.read()))
+            file_urls.append(pillow_image)
+        #print(file_urls)
 
-    id_sujet = 16
-    df_images = pd.DataFrame({'userFaces':file_urls, "subject_number": id_sujet, "imageId":range(1, len(file_urls)+1)})
-    #print(df_images)
+        id_sujet = 16
+        df_images = pd.DataFrame({'userFaces':file_urls, "subject_number": id_sujet, "imageId":range(1, len(file_urls)+1)})
+        #print(df_images)
 
-    workflow = Main().load_and_process_from_dataframe(df=df_images, target_subject=id_sujet, epsilon=0.01, method='bounded', unbounded_bound_type='l2').get(id_sujet)
-    eigenfaces_images = workflow.get_eigenfaces('bytes')
-    noised_images = workflow.get_noised_images('bytes')
+        epsilon = 0.01
+        workflow = Main()
+        workflow, error = workflow.load_and_process_from_dataframe(df=df_images, target_subject=id_sujet, epsilon=epsilon, method='bounded', unbounded_bound_type='l2')
+        workflow = workflow.get(id_sujet)
+        eigenfaces_images = workflow.get_eigenfaces('bytes')
+        noised_images = workflow.get_noised_images('bytes')
 
-    return render_template("result.html", eigenfaces_list=eigenfaces_images+noised_images)
+        rebuild_img = workflow.pca_object.reconstruct_image(workflow.projected_vectors)
+        rebuild_img = [image_numpy_to_pillow(img, workflow.resize_size) for img in rebuild_img]
+        rebuild_img = [image_pillow_to_bytes(img) for img in rebuild_img]
+        print(rebuild_img)
+
+        renderer = eigenfaces_images+noised_images+rebuild_img
+        return render_template("result.html", eigenfaces_list=renderer)
 
 # ---------------------------------------------------------------------------
 # ------------------------- BACK FUNCTIONS ----------------------------------
