@@ -10,7 +10,7 @@ from src.modules.utils_image import load_images, calculate_mse
 # Configuration
 DATASET_FOLDER = "../data/database"  # Update with the correct path
 IMAGE_SIZE = (100, 100)  # Target image size
-RATIOS = [0.4, 0.55, 0.7, 0.85, 1.0]  # Ratios for PCA component selection
+RATIOS = [0.4, 0.55, 0.7, 0.85, 1]  # Ratios for PCA component selection
 OUTPUT_FOLDER = "output_graphs"  # Folder to save images
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 

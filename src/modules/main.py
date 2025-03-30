@@ -3,67 +3,122 @@ import pandas as pd
 import os
 from PIL import Image
 from tqdm import tqdm
-import argparse
-from typing import Union
+from typing import Union, Tuple, List
 
 from src.modules.image_preprocessing import preprocess_image
 from src.config import IMAGE_SIZE
 from src.modules.peep import Peep
 
-
 class Main:
     """
-    Main class for loading, processing images, and creating Peep objects.
+    Classe principale pour charger, prétraiter les images et créer des objets Peep.
 
     Args:
-        image_size (tuple, optional): The target image size for preprocessing. Defaults to IMAGE_SIZE.
-        image_extensions (tuple, optional): Allowed image file extensions. Defaults to (".png", ".jpg", ".jpeg").
+        image_size (tuple, optional): Taille cible pour le redimensionnement. Défaut: IMAGE_SIZE.
+        image_extensions (tuple, optional): Extensions d'image autorisées. Défaut: (".png", ".jpg", ".jpeg").
     """
-
-    def __init__(self, image_size=IMAGE_SIZE, image_extensions=(".png", ".jpg", ".jpeg")):
+    def __init__(self, image_size: tuple = IMAGE_SIZE, image_extensions: Tuple[str, ...] = (".png", ".jpg", ".jpeg")) -> None:
         self.image_size = image_size
         self.image_extensions = image_extensions
         self.peep_objects = {}
-        self.errors = []
+        self.errors: List[str] = []
 
-    def load_and_process_from_folder(self, image_folder: str, subject_prefix: str = None, target_subject: int = None,
-                                  epsilon: float = 9.0, method='bounded', unbounded_bound_type='l2', n_components=None):
-        """Loads, preprocesses images, and creates Peep objects from a folder.
+    def load_lfw_dataframe(self, min_faces_per_person: int = 20, n_samples_per_person: int = 20) -> Tuple[dict, list]:
+        """
+        Charge et équilibre le dataset LFW People pour obtenir exactement n_samples_per_person images par personne.
+        Le DataFrame résultant contiendra les colonnes suivantes :
+          - userFaces: Image PIL en niveaux de gris
+          - imageId: Identifiant unique (index du DataFrame)
+          - subject_number: Identifiant numérique du sujet
+        Puis, ce DataFrame est passé à load_and_process_from_dataframe pour générer les objets Peep.
 
         Args:
-            image_folder (str): Path to the folder containing images.
-            subject_prefix (str, optional):  If provided, only process images where the subject number
-                matches this prefix (as a string). Defaults to None.
-            target_subject (int, optional): If provided, only process images for this specific subject number.
-                Defaults to None.
-            epsilon (float, optional): Privacy parameter. Defaults to 9.0.
-            method (str, optional): Sensitivity calculation method ('bounded' or 'unbounded').
-                Defaults to 'bounded'.
-            unbounded_bound_type (str, optional):  Bound type for unbounded ('l2' or 'empirical').
-                Defaults to 'l2'.
-            n_components (int, optional): The number of principal components.
+            min_faces_per_person (int): Nombre minimum d'images par personne pour être inclus.
+            n_samples_per_person (int): Nombre d'images à échantillonner par personne.
 
         Returns:
-           dict: Peep objects, keyed by subject number.  Empty dict if no images were processed.
-           list: A list of error messages encountered.
+            Tuple[dict, list]: self.peep_objects et self.errors.
         """
+        from sklearn.datasets import fetch_lfw_people
 
+        # Charger le dataset LFW People
+        lfw_people = fetch_lfw_people(min_faces_per_person=min_faces_per_person)
+        height, width = lfw_people.images.shape[1], lfw_people.images.shape[2]
+
+        # Vérifier la plage des données et convertir en uint8 correctement
+        data = lfw_people.data
+        if data.max() <= 1.0:
+            # Si les valeurs sont dans [0,1], les ramener à [0,255]
+            data = (data * 255).astype(np.uint8)
+        else:
+            data = data.astype(np.uint8)
+
+        # Créer un DataFrame à partir des données aplaties
+        df = pd.DataFrame(data)
+        df['subject_number'] = lfw_people.target
+        df['target_names'] = df['subject_number'].apply(lambda x: lfw_people.target_names[x])
+
+        # Équilibrer le dataset : échantillonner n_samples_per_person images par personne
+        grouped = df.groupby('target_names')
+        balanced_dfs = []
+        for name, group in tqdm(grouped, desc="Sampling each person"):
+            if len(group) >= n_samples_per_person:
+                sampled_group = group.sample(n=n_samples_per_person, random_state=42)
+                balanced_dfs.append(sampled_group)
+        df_balanced = pd.concat(balanced_dfs)
+
+        # Fonction pour reconstruire une image PIL à partir d'une ligne
+        def row_to_image(row):
+            # Les pixels se trouvent dans les colonnes de 0 à (height*width - 1)
+            pixel_values = row.iloc[:height * width].values.astype(np.uint8)
+            img_array = pixel_values.reshape((height, width))
+            return Image.fromarray(img_array, mode='L')
+
+        # Créer la colonne userFaces et un identifiant imageId
+        df_balanced['userFaces'] = df_balanced.apply(row_to_image, axis=1)
+        df_balanced['imageId'] = df_balanced.index
+
+        # Optionnel : supprimer les colonnes des pixels et target_names
+        columns_to_drop = list(range(height * width)) + ['target_names']
+        df_balanced.drop(columns=columns_to_drop, inplace=True)
+
+        # Utiliser la méthode existante pour générer les objets Peep
+        peep_objects, errors = self.load_and_process_from_dataframe(df_balanced)
+        return peep_objects, errors
+
+    def load_and_process_from_folder(self, image_folder: str, subject_prefix: str = None,
+                                     target_subject: int = None, epsilon: float = 9.0,
+                                     method: str = 'bounded', unbounded_bound_type: str = 'l2',
+                                     n_components: int = None) -> Tuple[dict, list]:
+        """
+        Charge, prétraite les images d'un dossier et crée les objets Peep par sujet.
+
+        Args:
+            image_folder (str): Chemin du dossier d'images.
+            subject_prefix (str, optional): Préfixe pour filtrer les sujets.
+            target_subject (int, optional): Numéro de sujet cible.
+            epsilon (float, optional): Paramètre de confidentialité. Défaut: 9.0.
+            method (str, optional): Méthode de calcul de sensibilité ('bounded' ou 'unbounded').
+            unbounded_bound_type (str, optional): Type de borne pour 'unbounded' ('l2' ou 'empirical').
+            n_components (int, optional): Nombre de composantes pour la PCA.
+
+        Returns:
+            Tuple[dict, list]: Dictionnaire d'objets Peep et liste d'erreurs.
+        """
         if not os.path.isdir(image_folder):
-            raise ValueError(f"The provided image folder '{image_folder}' is not a directory.")
+            raise ValueError(f"Le dossier '{image_folder}' n'est pas valide.")
 
         subject_data = {}
 
-        for filename in tqdm(os.listdir(image_folder), desc="Loading and Processing from Folder"):
+        for filename in tqdm(os.listdir(image_folder), desc="Chargement et traitement"):
             if not filename.lower().endswith(self.image_extensions):
                 continue
 
             try:
                 parts = filename.split("_")
                 if len(parts) < 4:
-                    raise ValueError(f"Filename '{filename}' has an invalid format.")
-
+                    raise ValueError(f"Nom de fichier invalide: '{filename}'.")
                 subject_number = int(parts[1])
-
                 if target_subject is not None and subject_number != target_subject:
                     continue
                 if subject_prefix is not None and str(subject_number) != subject_prefix:
@@ -72,89 +127,80 @@ class Main:
                 image_path = os.path.join(image_folder, filename)
                 with Image.open(image_path) as img:
                     processed_data = preprocess_image(img, resize_size=self.image_size, create_flattened=True)
-
-                    if processed_data and processed_data['flattened_image'] is not None:
-                        if subject_number not in subject_data:
-                            subject_data[subject_number] = []
-                        subject_data[subject_number].append(processed_data['flattened_image'])
+                    if processed_data and processed_data.get('flattened_image') is not None:
+                        subject_data.setdefault(subject_number, []).append(processed_data['flattened_image'])
                     else:
-                        self.errors.append(f"Skipping {filename} due to preprocessing error.")
+                        self.errors.append(f"Image {filename} ignorée (erreur de prétraitement).")
 
             except (IOError, OSError, ValueError) as e:
-                self.errors.append(f"Error processing {filename}: {e}")
+                self.errors.append(f"Erreur avec {filename}: {e}")
                 continue
 
         self.peep_objects = self._create_peep_objects(subject_data, epsilon, method, unbounded_bound_type, n_components)
         return self.peep_objects, self.errors
 
     def load_and_process_from_dataframe(self, df: pd.DataFrame, target_subject: int = None,
-                                     epsilon: float = 9.0, method='bounded', unbounded_bound_type='l2', n_components=None):
-        """Loads, preprocesses images, and creates Peep objects from a Pandas DataFrame.
+                                        epsilon: float = 9.0, method: str = 'bounded',
+                                        unbounded_bound_type: str = 'l2', n_components: int = None) -> Tuple[dict, list]:
+        """
+        Charge et prétraite les images à partir d'un DataFrame et crée les objets Peep.
 
-                Args:
-            df (pd.DataFrame): DataFrame containing 'userFaces' (PIL Images), 'imageId', and 'subject_number' columns.
-            target_subject (int, optional):  If provided, process only images for this subject. Defaults to None.
-            epsilon (float, optional): Privacy parameter. Defaults to 9.0.
-            method (str, optional):  Sensitivity calculation method ('bounded' or 'unbounded'). Defaults to 'bounded'.
-            unbounded_bound_type (str, optional): Bound type for unbounded sensitivity ('l2' or 'empirical'). Defaults to 'l2'.
-            n_components (int, optional): The number of principal components.
+        Args:
+            df (pd.DataFrame): DataFrame avec colonnes 'userFaces', 'imageId' et 'subject_number'.
+            target_subject (int, optional): Sujet cible.
+            epsilon (float, optional): Paramètre de confidentialité.
+            method (str, optional): Méthode de sensibilité.
+            unbounded_bound_type (str, optional): Type de borne pour 'unbounded'.
+            n_components (int, optional): Nombre de composantes pour la PCA.
 
         Returns:
-            dict: Peep objects by subject number. Empty dict if no images were processed.
-            list: A list of error messages.
+            Tuple[dict, list]: Dictionnaire d'objets Peep et liste d'erreurs.
         """
         required_columns = {'userFaces', 'imageId', 'subject_number'}
         if not required_columns.issubset(df.columns):
-            raise ValueError("DataFrame must contain 'userFaces', 'imageId', and 'subject_number' columns.")
-
+            raise ValueError("Le DataFrame doit contenir 'userFaces', 'imageId' et 'subject_number'.")
 
         subject_data = {}
-
-        for index, row in tqdm(df.iterrows(), total=len(df), desc="Loading and Processing from DataFrame"):
+        for index, row in tqdm(df.iterrows(), total=len(df), desc="Traitement du DataFrame"):
             try:
                 img = row['userFaces']
                 subject_number = row['subject_number']
-
                 if target_subject is not None and subject_number != target_subject:
                     continue
-
                 if not isinstance(img, Image.Image):
-                    raise ValueError(f"Invalid image type at index {index}.")
-
+                    raise ValueError(f"Image invalide à l'index {index}.")
                 processed_data = preprocess_image(img, resize_size=self.image_size, create_flattened=True)
-                if processed_data and processed_data['flattened_image'] is not None:
-                    if subject_number not in subject_data:
-                        subject_data[subject_number] = []
-                    subject_data[subject_number].append(processed_data['flattened_image'])
+                if processed_data and processed_data.get('flattened_image') is not None:
+                    subject_data.setdefault(subject_number, []).append(processed_data['flattened_image'])
                 else:
-                    self.errors.append(f"Skipping image ID {row['imageId']} due to preprocessing error.")
+                    self.errors.append(f"Image ID {row['imageId']} ignorée (erreur de prétraitement).")
 
             except ValueError as e:
-                self.errors.append(f"Error processing image at index {index}: {e}")
+                self.errors.append(f"Erreur à l'index {index}: {e}")
                 continue
 
         self.peep_objects = self._create_peep_objects(subject_data, epsilon, method, unbounded_bound_type, n_components)
         return self.peep_objects, self.errors
 
-
-
-    def _create_peep_objects(self, subject_data: dict, epsilon: float, method: str, unbounded_bound_type: str, n_components:int):
-        """Creates Peep objects for each subject (helper method).
+    def _create_peep_objects(self, subject_data: dict, epsilon: float, method: str,
+                             unbounded_bound_type: str, n_components: int) -> dict:
+        """
+        Crée les objets Peep pour chaque sujet.
 
         Args:
-            subject_data (dict): Dictionary of subject numbers and their flattened image data.
-            epsilon (float): Privacy parameter.
-            method (str): Sensitivity calculation method.
-            unbounded_bound_type (str): Bound type for unbounded sensitivity.
-            n_components(int): Number of components for PCA.
+            subject_data (dict): Dictionnaire {sujet: [images aplaties]}.
+            epsilon (float): Paramètre de confidentialité.
+            method (str): Méthode de calcul de sensibilité.
+            unbounded_bound_type (str): Type de borne pour 'unbounded'.
+            n_components (int): Nombre de composantes pour la PCA.
 
         Returns:
-            dict: Peep objects by subject number.
+            dict: Objets Peep indexés par sujet.
         """
         peep_objects = {}
         for subject, images in subject_data.items():
             if not images:
-                print(f"Warning: No image data for subject {subject}. Skipping.")
+                print(f"Aucun donnée pour le sujet {subject}. Ignoré.")
                 continue
             try:
                 images_array = np.array(images)
@@ -162,107 +208,40 @@ class Main:
                 peep.run(images_array, method=method, unbounded_bound_type=unbounded_bound_type, n_components=n_components)
                 peep_objects[subject] = peep
             except ValueError as e:
-                print(f"Error creating Peep object for subject {subject}: {e}")
-                self.errors.append(f"Error creating Peep object for subject {subject}: {e}")
+                print(f"Erreur pour le sujet {subject}: {e}")
+                self.errors.append(f"Sujet {subject}: {e}")
                 continue
         return peep_objects
 
     def get_peep_object(self, subject: int) -> Union[Peep, None]:
-        """Retrieves a specific Peep object by subject number.
+        """
+        Récupère l'objet Peep pour un sujet donné.
 
         Args:
-            subject (int): The subject number.
+            subject (int): Numéro du sujet.
 
         Returns:
-            Peep or None: The Peep object if found, None otherwise.
+            Peep ou None: Objet Peep si trouvé.
         """
         return self.peep_objects.get(subject)
 
-    def clear_errors(self):
-        """Clears the error list."""
+    def clear_errors(self) -> None:
+        """Réinitialise la liste des erreurs."""
         self.errors = []
 
-
-def main():
+def main() -> None:
     """
-    Main function to demonstrate the usage of the Main class.
+    Fonction principale pour démontrer l'utilisation de la classe Main.
     """
-    parser = argparse.ArgumentParser(description="Process images and create differentially private eigenfaces.")
-    parser.add_argument("-i", "--input_folder", type=str, required=True,
-                        help="Path to the folder containing images.")
-    parser.add_argument("-s", "--subject", type=int, default=None,
-                        help="Target subject number (process only this subject).")
-    parser.add_argument("-e", "--epsilon", type=float, default=1.0,
-                        help="Epsilon value for differential privacy (default: 1.0).")
-    parser.add_argument("-m", "--method", type=str, default="bounded", choices=["bounded", "unbounded"],
-                        help="Sensitivity calculation method ('bounded' or 'unbounded', default: 'bounded').")
-    parser.add_argument("-u", "--unbounded_type", type=str, default="l2", choices=["l2", "empirical"],
-                        help="Bound type for unbounded sensitivity ('l2' or 'empirical', default: 'l2').")
-    parser.add_argument("-n", "--n_components", type=int, default=None,
-                        help="Number of components for PCA")
-    parser.add_argument("-o", "--output_folder", type=str, default="output",
-                        help="Output folder to save eigenfaces and mean face plots.")
 
-
-    args = parser.parse_args()
-
-
-    if not os.path.exists(args.output_folder):
-      os.makedirs(args.output_folder)
-
-    main_instance = Main()
-    peep_objects, errors = main_instance.load_and_process_from_folder(
-        args.input_folder,
-        target_subject=args.subject,
-        epsilon=args.epsilon,
-        method=args.method,
-        unbounded_bound_type=args.unbounded_type,
-        n_components=args.n_components
-    )
-
+    main_obj = Main()
+    peep_objects, errors = main_obj.load_lfw_dataframe()
     if errors:
-        print("\nErrors encountered:")
+        print("Erreurs rencontrées:")
         for error in errors:
             print(error)
-
-
-    if peep_objects:
-        print(f"\nProcessed subjects: {list(peep_objects.keys())}")
-
-        for subject_id, peep_obj in peep_objects.items():
-          print(f"Processing subject: {subject_id}")
-          eigenfaces = peep_obj.get_eigenfaces(format='pillow')
-          if eigenfaces:
-            print(f"Number of eigenfaces for subject {subject_id}: {len(eigenfaces)}")
-          for i, eigenface in enumerate(eigenfaces[:min(5, len(eigenfaces))]):
-            eigenface.save(os.path.join(args.output_folder, f"eigenface_{subject_id}_{i}.png"))
-
-
-          noised_images = peep_obj.get_noised_images(format='pillow')
-          if noised_images:
-            print(f"Number of noised images for subject {subject_id}: {len(noised_images)}")
-          for j, image in enumerate(noised_images[:min(5, len(noised_images))]):
-            image.save(os.path.join(args.output_folder, f"noised_reconstructed_image_{subject_id}_{j}.png"))
-
-          mean_face = peep_obj.get_mean_face()
-          if mean_face:
-              mean_face.save(os.path.join(args.output_folder, f"mean_face_{subject_id}.png"))
-
-          components = peep_obj.get_pca_components()
-          explained_variance = peep_obj.get_pca_explained_variance()
-
-          if components is not None:
-              print(f"Shape of PCA components for subject {subject_id}: {components.shape}")
-          if explained_variance is not None:
-              print(f"Explained variance ratio for subject {subject_id}: {explained_variance}")
-
-          peep_obj.pca_object.plot_eigenfaces(args.output_folder, subject=subject_id)
-          peep_obj.pca_object.plot_mean_face(args.output_folder, subject=subject_id)
-          peep_obj.pca_object.plot_explained_variance(args.output_folder)
-          peep_obj.pca_object.analyze_eigenfaces(args.output_folder)
     else:
-        print("No Peep objects were created. Check for errors in input data or processing.")
-
+        print("Traitement terminé sans erreurs.")
 
 if __name__ == "__main__":
     main()

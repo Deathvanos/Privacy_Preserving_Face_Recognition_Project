@@ -6,33 +6,23 @@ from src.modules.eigenface import EigenfaceGenerator
 from src.modules.noise_generator import NoiseGenerator
 from src.modules.utils_image import image_numpy_to_pillow, image_pillow_to_bytes
 
+
 class Peep:
     """
-    Implements Differentially Private Eigenfaces for facial recognition.
+    Implémente les eigenfaces différentiellement privées pour la reconnaissance faciale.
 
     Args:
-        epsilon (int, optional): The privacy parameter (epsilon). Defaults to 9.  Lower values
-            provide stronger privacy but introduce more noise.
-        image_size (tuple, optional): The target size for image resizing. Defaults to IMAGE_SIZE.
-
-    Attributes:
-        resize_size (tuple): The image resizing size.
-        epsilon (float): The privacy parameter.
-        pca_object (EigenfaceGenerator): The EigenfaceGenerator instance.
-        projected_vectors (np.ndarray): The original images projected onto the eigenface subspace.
-        noised_images (np.ndarray): The noised projections of the images.
-        sensitivity (float): The calculated sensitivity of the PCA transformation.
-        max_components (int): maximum number of components for PCA.
+        epsilon (int, optional): Paramètre de confidentialité. Défaut: 9.
+        image_size (tuple, optional): Taille cible pour le redimensionnement. Défaut: IMAGE_SIZE.
     """
 
-    def __init__(self, epsilon: int = 9, image_size=IMAGE_SIZE):
+    def __init__(self, epsilon: int = 9, image_size=IMAGE_SIZE) -> None:
         if not isinstance(epsilon, (int, float)):
-            raise TypeError("Epsilon must be a number.")
+            raise TypeError("Epsilon doit être un nombre.")
         if epsilon <= 0:
-            raise ValueError("Epsilon must be greater than 0.")
+            raise ValueError("Epsilon doit être supérieur à 0.")
         if not isinstance(image_size, tuple) or len(image_size) != 2:
-            raise ValueError("image_size must be a tuple of length 2 (height, width).")
-
+            raise ValueError("image_size doit être un tuple de longueur 2 (hauteur, largeur).")
 
         self.resize_size = image_size
         self.epsilon = float(epsilon)
@@ -42,18 +32,18 @@ class Peep:
         self.sensitivity = None
         self.max_components = None
 
-    def _generate_eigenfaces(self, images_data: np.ndarray, n_components=None):
-        """Generates eigenfaces from preprocessed image data.
+    def _generate_eigenfaces(self, images_data: np.ndarray, n_components: int = None) -> None:
+        """
+        Génère les eigenfaces à partir des données d'image prétraitées.
 
         Args:
-            images_data (np.ndarray): A 2D NumPy array where each row is a flattened image.
-            n_components (int): Number of components for PCA.
+            images_data (np.ndarray): Tableau 2D (nombre d'images x taille aplatie).
+            n_components (int, optional): Nombre de composantes pour la PCA.
         """
-
         if not isinstance(images_data, np.ndarray):
-            raise ValueError("images_data must be a NumPy array.")
+            raise ValueError("images_data doit être un tableau NumPy.")
         if images_data.ndim != 2:
-            raise ValueError("images_data must be a 2D array (num_images x flattened_image_size).")
+            raise ValueError("images_data doit être un tableau 2D (nombre d'images x pixels).")
 
         num_images = images_data.shape[0]
         self.max_components = num_images
@@ -62,52 +52,45 @@ class Peep:
             n_components = min(num_images - 1, self.max_components)
 
         if n_components <= 0:
-            raise ValueError("Not enough images to generate eigenfaces (must be > 1).")
+            raise ValueError("Pas assez d'images pour générer les eigenfaces (doit être > 1).")
         if n_components > images_data.shape[1]:
-            raise ValueError("n_components cannot be greater than the number of features (pixels).")
+            raise ValueError("n_components ne peut dépasser le nombre de caractéristiques (pixels).")
 
         try:
             self.pca_object = EigenfaceGenerator(images_data, n_components=n_components)
             self.pca_object.generate()
         except Exception as e:
-            raise RuntimeError(f"Error generating eigenfaces: {e}")
+            raise RuntimeError(f"Erreur lors de la génération des eigenfaces: {e}")
 
-
-    def _project_images(self, images_data: np.ndarray):
-        """Projects the images onto the eigenface subspace.
+    def _project_images(self, images_data: np.ndarray) -> None:
+        """
+        Projette les images dans le sous-espace des eigenfaces.
 
         Args:
-           images_data: The input image data as a 2D numpy array.
+            images_data (np.ndarray): Données d'image (2D).
         """
         if self.pca_object is None:
-            raise ValueError("Eigenfaces must be generated before projecting images.")
-
+            raise ValueError("Les eigenfaces doivent être générées avant la projection.")
         self.projected_vectors = self.pca_object.pca.transform(images_data)
 
-
-    def _calculate_sensitivity(self, method='bounded', unbounded_bound_type='l2'):
-        """Calculates the sensitivity of the PCA transformation.
+    def _calculate_sensitivity(self, method: str = 'bounded', unbounded_bound_type: str = 'l2') -> None:
+        """
+        Calcule la sensibilité de la transformation PCA.
 
         Args:
-            method (str, optional): The sensitivity calculation method ('bounded' or 'unbounded').
-                Defaults to 'bounded'.
-            unbounded_bound_type (str, optional): The type of bound for the unbounded method
-                ('l2' or 'empirical'). Defaults to 'l2'.
-        Raises:
-            ValueError: If the method or unbounded_bound_type is invalid.
+            method (str, optional): Méthode de calcul ('bounded' ou 'unbounded'). Défaut: 'bounded'.
+            unbounded_bound_type (str, optional): Type de borne pour 'unbounded' ('l2' ou 'empirical'). Défaut: 'l2'.
         """
-
         if self.pca_object is None:
-            raise ValueError("Eigenfaces must be generated before calculating sensitivity.")
+            raise ValueError("Les eigenfaces doivent être générées avant de calculer la sensibilité.")
 
         if method == 'bounded':
             max_image_diff_norm = np.sqrt(2)
             sensitivity = max_image_diff_norm * np.linalg.norm(self.pca_object.pca.components_, ord=2)
-
         elif method == 'unbounded':
             if unbounded_bound_type == 'l2':
                 max_image_norm = np.sqrt(self.resize_size[0] * self.resize_size[1])
-                sensitivity = (2 * (max_image_norm**2)) / len(self.projected_vectors)
+                sensitivity = (2 * (max_image_norm ** 2)) / len(self.projected_vectors)
             elif unbounded_bound_type == 'empirical':
                 max_diff = 0
                 for i in range(len(self.projected_vectors)):
@@ -116,52 +99,52 @@ class Peep:
                         max_diff = max(max_diff, diff)
                 sensitivity = max_diff
             else:
-                raise ValueError("Invalid unbounded_bound_type. Choose 'l2' or 'empirical'.")
+                raise ValueError("unbounded_bound_type invalide. Choisissez 'l2' ou 'empirical'.")
         else:
-            raise ValueError("Invalid sensitivity calculation method. Choose 'bounded' or 'unbounded'.")
+            raise ValueError("Méthode de sensibilité invalide. Choisissez 'bounded' ou 'unbounded'.")
 
         self.sensitivity = sensitivity
 
-    def set_epsilon(self, epsilon: float):
-        """Sets a new epsilon value.
+    def set_epsilon(self, epsilon: float) -> None:
+        """
+        Met à jour la valeur de epsilon.
 
         Args:
-            epsilon (float): The new epsilon value.
+            epsilon (float): Nouvelle valeur d'epsilon.
         """
         if not isinstance(epsilon, (int, float)):
-            raise TypeError("Epsilon must be a number.")
+            raise TypeError("Epsilon doit être un nombre.")
         if epsilon <= 0:
-            raise ValueError("Epsilon must be greater than 0.")
-
+            raise ValueError("Epsilon doit être supérieur à 0.")
         self.epsilon = float(epsilon)
 
-
-    def _add_laplace_noise(self):
-        """Adds Laplace noise to the projected image data."""
-        print(self.projected_vectors.shape)
+    def _add_laplace_noise(self) -> None:
+        """
+        Ajoute du bruit Laplacien aux vecteurs projetés.
+        """
         if self.projected_vectors is None:
-            raise ValueError("Images must be projected before adding noise.")
+            raise ValueError("Les images doivent être projetées avant d'ajouter du bruit.")
         if self.sensitivity is None:
-            raise ValueError("Sensitivity must be calculated before adding noise.")
+            raise ValueError("La sensibilité doit être calculée avant d'ajouter du bruit.")
 
         noise_generator = NoiseGenerator(self.projected_vectors, self.epsilon)
         noise_generator.normalize_images()
         noise_generator.add_laplace_noise(self.sensitivity)
         self.noised_vectors = noise_generator.get_noised_eigenfaces()
 
-
-    def run(self, images_data: np.ndarray, method='bounded', unbounded_bound_type='l2', n_components=None):
-        """Runs the entire process: eigenface generation, projection, sensitivity calculation,
-        and noise addition.
+    def run(self, images_data: np.ndarray, method: str = 'bounded', unbounded_bound_type: str = 'l2',
+            n_components: int = None) -> bool:
+        """
+        Exécute l'ensemble du processus : génération des eigenfaces, projection, calcul de la sensibilité et ajout de bruit.
 
         Args:
-            images_data (np.ndarray): A 2D NumPy array of flattened images.
-            method (str): Sensitivity calculation method ('bounded' or 'unbounded').
-            unbounded_bound_type (str):  Type of bound for unbounded ('l2' or 'empirical').
-            n_components (int, optional): The number of principal components to keep.
+            images_data (np.ndarray): Tableau 2D d'images aplaties.
+            method (str): Méthode de calcul de sensibilité.
+            unbounded_bound_type (str): Type de borne pour 'unbounded'.
+            n_components (int, optional): Nombre de composantes pour la PCA.
 
         Returns:
-            bool: True if the process completes successfully.
+            bool: True si le processus est terminé avec succès.
         """
         self._generate_eigenfaces(images_data, n_components)
         self._project_images(images_data)
@@ -169,81 +152,65 @@ class Peep:
         self._add_laplace_noise()
         return True
 
-
     def get_eigenfaces(self, format: str = 'numpy'):
-        """Retrieves the generated eigenfaces.
+        """
+        Récupère les eigenfaces générées.
 
         Args:
-            format (str, optional): The desired format ('numpy', 'pillow', or 'bytes').
-                Defaults to 'numpy'.
+            format (str, optional): Format désiré ('numpy', 'pillow', etc.). Défaut: 'numpy'.
 
         Returns:
-            list or np.ndarray: The eigenfaces in the specified format.
-        Raises:
-            ValueError: if format is not supported
+            Selon le format choisi, retourne les eigenfaces.
         """
         if self.pca_object is None:
-            return []
-        eigenfaces = self.pca_object.get_eigenfaces()
+            raise ValueError("Les eigenfaces n'ont pas été générées.")
         if format == 'numpy':
-            return eigenfaces
-        pil_eigenfaces = [image_numpy_to_pillow(img) for img in eigenfaces]
-        if format == 'pillow':
-            return pil_eigenfaces
-        elif format == 'bytes':
-            return [image_pillow_to_bytes(img) for img in pil_eigenfaces]
-        raise ValueError("'format' must be 'numpy', 'pillow', or 'bytes'.")
-
-    def get_pca_components(self):
-        """Returns the principal components (eigenvectors) from the PCA."""
-        if self.pca_object is None:
-            return None
-        return self.pca_object.pca.components_
-
-    def get_pca_explained_variance(self):
-        """Returns the explained variance ratio for each principal component."""
-        if self.pca_object is None:
-            return None
-        return self.pca_object.pca.explained_variance_ratio_
-
-    def get_mean_face(self):
-        """Returns the mean face as a PIL Image."""
-        if self.pca_object is None:
-            return None
-        mean_face_array = self.pca_object.get_mean_face()
-        mean_face_image = Image.fromarray((mean_face_array * 255).astype(np.uint8)).convert("L")
-        return mean_face_image
-
-    def get_projected_data(self):
-        """Returns the original images projected onto the eigenface space."""
-        return self.projected_vectors
-
-
-    def get_noised_images(self, format: str = 'numpy'):
-        """Retrieves the noised images (reconstructed from the noised projections).
-
-        Args:
-            format (str, optional):  Desired format ('numpy', 'pillow', or 'bytes'). Defaults to 'numpy'.
-
-        Returns:
-            list or np.ndarray: The noised images in the specified format.
-
-        Raises:
-            ValueError: If the format is invalid.
-        """
-        if self.noised_vectors is None:
-            return None
-
-        if format == 'numpy':
-            reconstructed_noisy = self.pca_object.reconstruct_image(self.noised_vectors)
-            return reconstructed_noisy
-
-        reconstructed_noisy = self.pca_object.reconstruct_image(self.noised_vectors)
-        pil_images = [image_numpy_to_pillow(img.reshape(self.resize_size)) for img in reconstructed_noisy]
-
-        if format == 'pillow':
-            return pil_images
-        elif format == 'bytes':
-            return [image_pillow_to_bytes(img) for img in pil_images]
+            return self.pca_object.get_eigenfaces()
+        elif format == 'pillow':
+            return [image_numpy_to_pillow(face, resized_size=self.resize_size) for face in
+                    self.pca_object.get_eigenfaces()]
         else:
-            raise ValueError("'format' must be 'numpy', 'pillow', or 'bytes'.")
+            raise ValueError("Format non supporté.")
+
+    def get_mean_face(self, format: str = 'numpy'):
+        """
+        Récupère l'image moyenne.
+
+        Args:
+            format (str, optional): Format désiré ('numpy', 'pillow', etc.). Défaut: 'numpy'.
+
+        Returns:
+            L'image moyenne dans le format spécifié.
+        """
+        if self.pca_object is None:
+            raise ValueError("Les eigenfaces n'ont pas été générées.")
+        mean_face = self.pca_object.get_mean_face()
+        if format == 'numpy':
+            return mean_face
+        elif format == 'pillow':
+            return image_numpy_to_pillow(mean_face, resized_size=self.resize_size)
+        else:
+            raise ValueError("Format non supporté.")
+
+    def get_pca_object(self) -> EigenfaceGenerator:
+        """
+        Renvoie l'objet PCA associé.
+
+        Returns:
+            EigenfaceGenerator: Instance de la classe EigenfaceGenerator.
+        """
+        if self.pca_object is None:
+            raise ValueError("L'objet PCA n'est pas encore créé.")
+        return self.pca_object
+
+    def image_pillow_to_bytes(self, image: Image.Image) -> str:
+        """
+        Convertit une image PIL en bytes encodés en base64.
+
+        Args:
+            image (PIL.Image.Image): Image à convertir.
+
+        Returns:
+            str: Image encodée en base64.
+        """
+        return image_pillow_to_bytes(image)
