@@ -46,3 +46,5 @@ build/
 /sandbox/performance_tests/
 /sandbox/perf_results/
 /sandbox/output_graphs/
+/src/modules/logs
+/src/modules/show_test_subject
