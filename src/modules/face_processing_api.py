@@ -7,12 +7,10 @@ import os
 from collections import defaultdict
 from tqdm import tqdm
 import logging
-
-from src.modules.image_preprocessing import preprocess_image
-from src.modules.eigenface import EigenfaceGenerator
-from src.modules.noise_generator import NoiseGenerator
+from sklearn.decomposition import PCA
 from src.config import IMAGE_SIZE
 
+# Configuration Flask
 app = Flask(__name__)
 
 # Configuration logging
@@ -21,12 +19,51 @@ os.makedirs(os.path.dirname(log_path), exist_ok=True)
 logging.basicConfig(level=logging.DEBUG, filename=log_path, filemode='w', format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Stockage global du pipeline
-pipeline_result = {}
-
-# Sauvegarde visuelle d'un sujet
+# Constantes
 SHOW_DIR = "show_test_subject"
 os.makedirs(SHOW_DIR, exist_ok=True)
+
+# === MODULES ===
+
+# ✅ Les images 'resized_image' et 'grayscale_image' peuvent être facilement affichées sur une GUI
+# en les encodant en base64 ou affichées directement via matplotlib ou PIL
+
+def preprocess_image(img: Image.Image, resize_size=(100, 100)) -> dict:
+    img_resized = img.resize(resize_size)
+    img_gray = img_resized.convert("L")
+    img_array = np.array(img_gray) / 255.0
+    flattened = img_array.flatten()
+    return {
+        "resized_image": img_resized,
+        "grayscale_image": img_gray,
+        "normalized_image": img_array,
+        "flattened_image": flattened
+    }
+
+# ✅ Les 'eigenfaces' et 'mean_face' sont des images 2D normalisées et peuvent être affichées directement dans une GUI
+# après transformation inverse ou encodage base64
+
+def compute_eigenfaces(images_flattened, n_components):
+    pca = PCA(n_components=n_components)
+    pca.fit(images_flattened)
+    eigenfaces = pca.components_.reshape((n_components, *IMAGE_SIZE))
+    mean_face = pca.mean_.reshape(IMAGE_SIZE)
+    return pca, eigenfaces, mean_face
+
+# ℹ️ Cette fonction retourne une matrice de données projetées avec bruit, utile pour visualisation indirecte (ex : valeurs projetées)
+# mais pas directement affichable comme une image dans une GUI
+
+def add_differential_noise(data, epsilon, sensitivity=1.0):
+    scale = sensitivity / epsilon
+    noise = np.random.laplace(0, scale, data.shape)
+    return data + noise
+
+# ✅ Les images reconstruites peuvent être directement affichées dans une interface utilisateur graphique
+# après éventuelle normalisation et encodage base64
+
+def reconstruct_images(pca, projections):
+    reconstructions = pca.inverse_transform(projections)
+    return [img.reshape(IMAGE_SIZE) for img in reconstructions]
 
 def pil_to_base64(img: Image.Image) -> str:
     buf = io.BytesIO()
@@ -42,6 +79,9 @@ def save_show_images(subject_id, images):
         img_bytes = base64.b64decode(b64img)
         img = Image.open(io.BytesIO(img_bytes))
         img.save(os.path.join(SHOW_DIR, f"subject_{subject_id}_image_{i}.jpg"))
+
+# === PIPELINE ===
+pipeline_result = {}
 
 @app.route("/pipeline", methods=["POST"])
 def run_pipeline():
@@ -73,12 +113,7 @@ def run_pipeline():
             img = Image.open(img_path).convert("RGB")
             preprocessed = preprocess_image(img, resize_size=IMAGE_SIZE)
             if preprocessed and preprocessed['flattened_image'] is not None:
-                image_groups[subject_id].append({
-                    "resized": preprocessed['resized_image'],
-                    "grayscale": preprocessed['grayscale_image'],
-                    "normalized": preprocessed['normalized_image'],
-                    "flattened": preprocessed['flattened_image']
-                })
+                image_groups[subject_id].append(preprocessed)
         except Exception as e:
             logger.warning(f"Erreur lors du traitement de {filename}: {e}")
             continue
@@ -95,37 +130,20 @@ def run_pipeline():
             continue
 
         logger.debug(f"Traitement du sujet {subject_id} avec {len(images)} images")
-        flattened_stack = np.array([img['flattened'] for img in images])
-        max_components = flattened_stack.shape[0]
-        n_components = min(int(n_components_ratio * max_components), flattened_stack.shape[1])
+        flattened_stack = np.array([img['flattened_image'] for img in images])
+        n_components = min(int(n_components_ratio * flattened_stack.shape[0]), flattened_stack.shape[1])
 
-        logger.debug(f"Nombre de composantes PCA utilisées : {n_components}")
+        pca, eigenfaces, mean_face = compute_eigenfaces(flattened_stack, n_components)
+        projection = pca.transform(flattened_stack)
+        projection_noisy = add_differential_noise(projection, epsilon)
+        reconstructed = reconstruct_images(pca, projection_noisy)
 
-        eigenface_gen = EigenfaceGenerator(flattened_stack, n_components=n_components)
-        eigenface_gen.generate()
-        eigenfaces = eigenface_gen.get_eigenfaces()
-        mean_face = eigenface_gen.get_mean_face()
-
-        projection = eigenface_gen.get_pca_object().transform(flattened_stack)
-
-        logger.debug("Ajout de bruit différentiel")
-        noise_gen = NoiseGenerator(projection, epsilon)
-        noise_gen.normalize_images()
-        noise_gen.add_laplace_noise(sensitivity=1.0)
-        projection_noisy = noise_gen.get_noised_eigenfaces()
-
-        logger.debug("Reconstruction des images")
-        reconstructed_images = []
-        for i in range(len(projection_noisy)):
-            recon = eigenface_gen.reconstruct_image(projection_noisy[i])
-            reconstructed_images.append(recon.reshape(IMAGE_SIZE))
-
-        encoded_recon = [array_to_base64(img) for img in reconstructed_images]
+        encoded_recon = [array_to_base64(img) for img in reconstructed]
 
         pipeline_result[subject_id] = {
-            "resized": [pil_to_base64(img['resized']) for img in images],
-            "grayscale": [pil_to_base64(img['grayscale']) for img in images],
-            "normalized": [img['normalized'].tolist() for img in images],
+            "resized": [pil_to_base64(img['resized_image']) for img in images],
+            "grayscale": [pil_to_base64(img['grayscale_image']) for img in images],
+            "normalized": [img['normalized_image'].tolist() for img in images],
             "flattened": flattened_stack.tolist(),
             "eigenfaces": [array_to_base64(face) for face in eigenfaces],
             "mean_face": array_to_base64(mean_face),
