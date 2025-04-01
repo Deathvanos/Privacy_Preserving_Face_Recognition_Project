@@ -68,14 +68,14 @@ def show_comparison(original_images, individual_anonymized, nb=5):
         axes[i][1].axis('off')
         axes[i][1].set_title(f"K-Pixel\n{filename}", fontsize=10)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.96])  # pour laisser de la place au suptitle
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
 
 
 if __name__ == "__main__":
     input_folder = "/Users/elodiechen/PycharmProjects/Privacy_Preserving_Face_Recognition_Project/data/yalefaces"
-    output_folder = "dataset/k_same_faces"  # ← 🔁 RÉINTÉGRÉ ici
+    output_folder = "dataset/k_same_faces"
     k = 3
 
     subject_images = load_images_by_subject(input_folder)
@@ -88,12 +88,12 @@ if __name__ == "__main__":
         anonymized_individual = k_same_pixel_individual(images, k)
         total_anonymized_individual.extend(anonymized_individual)
 
-    # 🔁 Partie renommée + sauvegarde
+
     print("📁 Sauvegarde des images anonymisées individuelles...")
     save_images(total_anonymized_individual, output_folder)
     print(f"✅ {len(total_anonymized_individual)} images anonymisées individuellement enregistrées dans : {output_folder}")
 
-    # 👀 Visualisation d’un sujet
+
     first_subject = next(iter(subject_images.values()))
     anonymized_first = k_same_pixel_individual(first_subject, k)
     show_comparison(
