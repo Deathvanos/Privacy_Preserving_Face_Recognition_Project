@@ -2,7 +2,7 @@ from src.modules.peep import Peep
 from pandas import DataFrame
 from os import listdir
 import numpy as np
-from src.modules.utils_image import image_numpy_to_pillow
+from src.modules.utils_image import numpy_image_to_pillow
 from functools import reduce
 import operator
 from PIL import Image, ImageDraw
@@ -64,7 +64,7 @@ def generate_noise_on_eigenface_images(subject=1, epsilon=5,
     #print(eg1.min(), eg1.max())
     if show_img:
         eg1 = eigenfaces_list[show_img]
-        image_numpy_to_pillow(eg1).show()
+        numpy_image_to_pillow(eg1).show()
 
     # Flatten Images
     img_shape = eigenfaces_list[0].shape
@@ -80,7 +80,7 @@ def generate_noise_on_eigenface_images(subject=1, epsilon=5,
     if show_img:
         eg1_norm = eigenfaces_normalised_list[show_img]
         print(img_size)
-        image_numpy_to_pillow(eg1_norm, img_shape).show()
+        numpy_image_to_pillow(eg1_norm, img_shape).show()
 
 
     # Apply Laplace
@@ -93,14 +93,14 @@ def generate_noise_on_eigenface_images(subject=1, epsilon=5,
     noised_image_list = [add_laplace_noise(img, epsilon) for img in eigenfaces_normalised_list]
     if show_img:
         eg1_noised = noised_image_list[show_img]
-        image_numpy_to_pillow(eg1_noised, img_shape).show()
+        numpy_image_to_pillow(eg1_noised, img_shape).show()
 
     if export_img:
         # transform all images in pil
         pil_images_source = [image.resize(img_shape) for image in image_df['userFaces'].tolist()]
-        pil_eigenface_images = [image_numpy_to_pillow(img, img_shape) for img in eigenfaces_list]
-        pil_normalised_images = [image_numpy_to_pillow(img, img_shape) for img in eigenfaces_normalised_list]
-        pil_noised_images = [image_numpy_to_pillow(img, img_shape) for img in noised_image_list]
+        pil_eigenface_images = [numpy_image_to_pillow(img, img_shape) for img in eigenfaces_list]
+        pil_normalised_images = [numpy_image_to_pillow(img, img_shape) for img in eigenfaces_normalised_list]
+        pil_noised_images = [numpy_image_to_pillow(img, img_shape) for img in noised_image_list]
         # Create the united image
         image_lists = [pil_images_source, pil_eigenface_images, pil_normalised_images, pil_noised_images]
         result = combine_pill_images_lists(image_lists, delimiter_color=(100, 100, 100), delimiter_width=10)
@@ -155,7 +155,7 @@ def wf_pil_vector():
         noised_vectors, peep = generate_noise_on_projected_data(subject=1, epsilon=e)
         pca = peep.pca_objects[15].pca
         reconstructed_data = pca.inverse_transform(noised_vectors)
-        pil_noised_images = [image_numpy_to_pillow(img, (100,100)) for img in reconstructed_data]
+        pil_noised_images = [numpy_image_to_pillow(img, (100,100), True) for img in reconstructed_data]
         e_pil_list += [pil_noised_images]
     result = combine_pill_images_lists(e_pil_list, delimiter_color=(100, 100, 100), delimiter_width=10)
     result.save(f"{folder_save}/result_from_vectors.png")
