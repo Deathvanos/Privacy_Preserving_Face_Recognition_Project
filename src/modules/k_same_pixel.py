@@ -24,7 +24,6 @@ def load_images_by_subject(folder, image_size=(100, 100)):
     return subject_dict
 
 def k_same_pixel_individual(images, k=3):
-    print(images[0])
     anonymized = []
     img_list = [img for img, _ in images]
     name_list = [name for _, name in images]
@@ -71,12 +70,14 @@ def show_comparison(original_images, individual_anonymized, nb=5):
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
-
+    output_path = os.path.join(output_folder, 'visualization.png')
+    plt.savefig(output_path, format='png')
+    print(f"📸 Visualisation sauvegardée dans {output_path}")
 
 if __name__ == "__main__":
     input_folder = "/Users/elodiechen/PycharmProjects/Privacy_Preserving_Face_Recognition_Project/data/yalefaces"
-    output_folder = "dataset/k_same_faces"
-    k = 3
+    output_folder = "/Users/elodiechen/PycharmProjects/Privacy_Preserving_Face_Recognition_Project/data/k_same_pixel_faces"
+    k = 3  # nombre de voisins (ou groupe de k images)
 
     subject_images = load_images_by_subject(input_folder)
     total_anonymized_individual = []
@@ -88,12 +89,11 @@ if __name__ == "__main__":
         anonymized_individual = k_same_pixel_individual(images, k)
         total_anonymized_individual.extend(anonymized_individual)
 
-
     print("📁 Sauvegarde des images anonymisées individuelles...")
     save_images(total_anonymized_individual, output_folder)
     print(f"✅ {len(total_anonymized_individual)} images anonymisées individuellement enregistrées dans : {output_folder}")
 
-
+    # Visualisation uniquement pour le premier sujet
     first_subject = next(iter(subject_images.values()))
     anonymized_first = k_same_pixel_individual(first_subject, k)
     show_comparison(
