@@ -48,3 +48,7 @@ build/
 /sandbox/output_graphs/
 /src/modules/logs
 /src/modules/show_test_subject
+/data
+/sandbox/analysis_results_auto_v2
+/sandbox/show_test_subject
+/sandbox/visualizations_subject_1

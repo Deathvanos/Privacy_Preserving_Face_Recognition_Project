@@ -9,10 +9,10 @@ import pandas as pd
 from PIL import Image
 from tqdm import tqdm
 
-from image_preprocessing import preprocess_image
-from eigenface import EigenfaceGenerator
-from noise_generator import NoiseGenerator
-from utils_image import image_pillow_to_bytes, image_numpy_to_pillow
+from src.modules.image_preprocessing import preprocess_image
+from src.modules.eigenface import EigenfaceGenerator
+from src.modules.noise_generator import NoiseGenerator
+from src.modules.utils_image import image_pillow_to_bytes, image_numpy_to_pillow
 
 from src.config import IMAGE_SIZE
 
@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 SHOW_DIR = "show_test_subject"
 os.makedirs(SHOW_DIR, exist_ok=True)
+
+# Répertoire pour enregistrer les images reconstruites
+RECONSTRUCTED_DIR = "../../data/reconstructed"
+os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
 
 
 def save_show_images(subject_id, images):
@@ -34,19 +38,31 @@ def save_show_images(subject_id, images):
         img.save(os.path.join(SHOW_DIR, f"subject_{subject_id}_image_{i}.jpg"))
 
 
+def save_reconstructed_images(subject_id, images):
+    """
+    Enregistre le lot d'images reconstruites pour un sujet donné dans un sous-dossier.
+    Chaque image est enregistrée au format JPEG.
+    """
+    subject_dir = os.path.join(RECONSTRUCTED_DIR, f"subject_{subject_id}")
+    os.makedirs(subject_dir, exist_ok=True)
+    for i, b64img in enumerate(images):
+        img_bytes = base64.b64decode(b64img)
+        img = Image.open(io.BytesIO(img_bytes))
+        img.save(os.path.join(subject_dir, f"reconstructed_{i}.jpg"))
+    logger.info(f"Images reconstruites enregistrées pour le sujet {subject_id} dans {subject_dir}")
+
+
 # ------------------------
 # Étape 1 : Preprocessing
 # ------------------------
 def run_preprocessing(folder_path: str = None, df_images: pd.DataFrame = None) -> dict:
     """
     Charge et prétraite les images depuis un dossier ou à partir d'un DataFrame.
-
     Si 'folder_path' est fourni, les images sont lues depuis le dossier.
     Si 'df_images' est fourni, celui-ci doit contenir :
         - 'userFaces' : images PIL,
         - 'subject_number' : identifiant du sujet,
         - 'imageId' : identifiant unique de l'image.
-
     Retourne un dictionnaire où chaque clé est un identifiant de sujet associé
     à une liste d'images prétraitées (dictionnaires contenant 'resized_image',
     'grayscale_image', 'normalized_image' et 'flattened_image').
@@ -153,7 +169,6 @@ def run_pipeline(folder_path: str = None, df_images: pd.DataFrame = None,
            - Calcul des eigenfaces
            - Ajout de bruit différentiel
            - Reconstruction
-
     Retourne un dictionnaire contenant, pour chaque sujet, les résultats suivants :
         {
             "resized": [images redimensionnées en base64],
@@ -204,12 +219,9 @@ def run_pipeline(folder_path: str = None, df_images: pd.DataFrame = None,
             "reconstructed": reconstructed_images
         }
 
-        # Optionnel : sauvegarder un exemple pour le premier sujet traité
-        '''
-        if subject_id == sorted(pipeline_result.keys())[0]:
-            save_show_images(subject_id, reconstructed_images)
-            logger.info(f"Exemple enregistré pour le sujet {subject_id}")
-        '''
+        # Enregistrement des images reconstruites dans le répertoire dédié
+        save_reconstructed_images(subject_id, reconstructed_images)
+
         logger.debug(f"Sujet {subject_id} traité avec succès.")
 
     return pipeline_result
