@@ -3,6 +3,11 @@ DATABASE_PATH = "../data/database"
 
 import os
 
+
+class Config:
+    def __init__(self, **kwargs):
+        pass
+
 # --- Chemins et Noms ---
 # Chemin vers le dossier contenant les images anonymisées (structure plate)
 # Utilise un chemin relatif depuis la racine du projet
