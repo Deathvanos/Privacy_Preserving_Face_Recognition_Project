@@ -1,7 +1,6 @@
 import base64
 import io
 import os
-
 import PIL
 from PIL import Image
 import numpy as np
@@ -133,6 +132,46 @@ def load_data(filename: str):
     return np.load(filename)
 
 
+def calculate_mse(image_a: np.ndarray, image_b: np.ndarray, image_size: tuple) -> float:
+    """
+    Calcule l'erreur quadratique moyenne (MSE) entre deux images.
+
+    Args:
+        image_a (np.ndarray): Première image.
+        image_b (np.ndarray): Seconde image.
+        image_size (tuple): Taille d'origine de l'image (hauteur, largeur).
+
+    Returns:
+        float: Valeur du MSE.
+    """
+    if image_a.ndim == 1:
+        image_a = image_a.reshape(image_size)
+    if image_b.ndim == 1:
+        image_b = image_b.reshape(image_size)
+    err = np.sum((image_a.astype("float") - image_b.astype("float")) ** 2)
+    err /= float(image_a.shape[0] * image_a.shape[1])
+    return err
+
+
+def calculate_ssim(image_a: np.ndarray, image_b: np.ndarray, data_range: float = None) -> float:
+    """
+    Calcule l'indice de similarité structurelle (SSIM) entre deux images.
+
+    Args:
+        image_a (np.ndarray): Première image.
+        image_b (np.ndarray): Seconde image.
+        data_range (float, optional): Plage de données. Défaut: None.
+
+    Returns:
+        float: Valeur du SSIM.
+    """
+    if image_a.ndim == 3:
+        image_a = np.dot(image_a[..., :3], [0.2989, 0.5870, 0.1140])
+    if image_b.ndim == 3:
+        image_b = np.dot(image_b[..., :3], [0.2989, 0.5870, 0.1140])
+    return ssim(image_a, image_b, data_range=data_range)
+
+
 
 
 def filestorage_image_to_pil(element: FileStorage|list[FileStorage]) -> PIL.Image.Image|list[PIL.Image.Image]:
@@ -201,43 +240,3 @@ def numpy_image_to_pillow(element: np.ndarray | list[np.ndarray], resized_size: 
     else:
         return convert(element)
 
-
-
-def calculate_mse(image_a: np.ndarray, image_b: np.ndarray, image_size: tuple) -> float:
-    """
-    Calcule l'erreur quadratique moyenne (MSE) entre deux images.
-
-    Args:
-        image_a (np.ndarray): Première image.
-        image_b (np.ndarray): Seconde image.
-        image_size (tuple): Taille d'origine de l'image (hauteur, largeur).
-
-    Returns:
-        float: Valeur du MSE.
-    """
-    if image_a.ndim == 1:
-        image_a = image_a.reshape(image_size)
-    if image_b.ndim == 1:
-        image_b = image_b.reshape(image_size)
-    err = np.sum((image_a.astype("float") - image_b.astype("float")) ** 2)
-    err /= float(image_a.shape[0] * image_a.shape[1])
-    return err
-
-
-def calculate_ssim(image_a: np.ndarray, image_b: np.ndarray, data_range: float = None) -> float:
-    """
-    Calcule l'indice de similarité structurelle (SSIM) entre deux images.
-
-    Args:
-        image_a (np.ndarray): Première image.
-        image_b (np.ndarray): Seconde image.
-        data_range (float, optional): Plage de données. Défaut: None.
-
-    Returns:
-        float: Valeur du SSIM.
-    """
-    if image_a.ndim == 3:
-        image_a = np.dot(image_a[..., :3], [0.2989, 0.5870, 0.1140])
-    if image_b.ndim == 3:
-        image_b = np.dot(image_b[..., :3], [0.2989, 0.5870, 0.1140])
-    return ssim(image_a, image_b, data_range=data_range)

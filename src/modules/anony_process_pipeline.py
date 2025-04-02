@@ -12,7 +12,7 @@ from tqdm import tqdm
 from src.modules.image_preprocessing import preprocess_image
 from src.modules.eigenface import EigenfaceGenerator
 from src.modules.noise_generator import NoiseGenerator
-from src.modules.utils_image import image_pillow_to_bytes, image_numpy_to_pillow
+from src.modules.utils_image import pillow_image_to_bytes, numpy_image_to_pillow
 
 from src.config import IMAGE_SIZE
 
@@ -151,8 +151,8 @@ def run_reconstruction(pca, noised_projection: np.ndarray) -> list:
     reconstructions = pca.inverse_transform(noised_projection)
     reconstructed_images = []
     for recon in reconstructions:
-        pil_img = image_numpy_to_pillow(recon, resized_size=IMAGE_SIZE)
-        b64_img = image_pillow_to_bytes(pil_img)
+        pil_img = numpy_image_to_pillow(recon, resized_size=IMAGE_SIZE)
+        b64_img = pillow_image_to_bytes(pil_img)
         reconstructed_images.append(b64_img)
     return reconstructed_images
 
@@ -209,11 +209,11 @@ def run_pipeline(folder_path: str = None, df_images: pd.DataFrame = None,
         # ------------------------------
 
         pipeline_result[subject_id] = {
-            "resized": [image_pillow_to_bytes(img['resized_image']) for img in images],
-            "grayscale": [image_pillow_to_bytes(img['grayscale_image']) for img in images],
-            "normalized": [img['normalized_image'].tolist() for img in images],
+            "resized": pillow_image_to_bytes(images['resized_image']),
+            "grayscale": pillow_image_to_bytes(images['grayscale_image']),
+            "normalized": images['normalized_image'].tolist(),
             "flattened": flattened_stack.tolist(),
-            "mean_face": image_pillow_to_bytes(image_numpy_to_pillow(mean_face, resized_size=IMAGE_SIZE)),
+            "mean_face": pillow_image_to_bytes(numpy_image_to_pillow(mean_face, resized_size=IMAGE_SIZE)),
             "projection": projection.tolist(),
             "noised_projection": noised_projection.tolist(),
             "reconstructed": reconstructed_images
