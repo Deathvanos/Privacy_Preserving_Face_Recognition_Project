@@ -1,4 +1,4 @@
-from modules.peep import Peep
+from src.modules.peep import Peep
 from pandas import DataFrame
 from os import listdir
 import numpy as np

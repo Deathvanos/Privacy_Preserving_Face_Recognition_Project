@@ -44,4 +44,12 @@ build/
 /documentation/Synthese-reunion-180225.docx
 /sandbox/noised_image_test/
 /sandbox/performance_tests/
+/sandbox/perf_results/
+/sandbox/output_graphs/
+/src/modules/logs
+/src/modules/show_test_subject
+/data
+/sandbox/analysis_results_auto_v2
+/sandbox/show_test_subject
+/sandbox/visualizations_subject_1
 /data/database.db
