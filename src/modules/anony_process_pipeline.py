@@ -79,72 +79,103 @@ def save_ksame_images(subject_id, images):
     if saved_count > 0:
         logger.info(f"{saved_count} images K-Same enregistrées pour sujet {subject_id} dans {subject_dir}")
 
-# ---------------------------------------
-# Étape 1 : Preprocessing (Simplifiée)
-# ---------------------------------------
-# (Version fournie par l'utilisateur, ne fait plus k-same ici)
+
+from typing import Optional, List, Dict, Any
+from collections import defaultdict
+from werkzeug.datastructures import FileStorage
+import base64, io, os, binascii
+from PIL import Image, UnidentifiedImageError
+import pandas as pd
+from tqdm import tqdm
+
+
 def run_preprocessing(
-    folder_path: Optional[str] = None,
-    df_images: Optional[pd.DataFrame] = None,
-    b64_image_list: Optional[List[str]] = None
+        folder_path: Optional[str] = None,
+        df_images: Optional[pd.DataFrame] = None,
+        b64_image_list: Optional[List[str]] = None,
+        filestorage_list: Optional[List[FileStorage]] = None
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Charge et prétraite les images depuis UNE source. Stocke l'imageId original.
-    Ne fait PAS de k-same pixel ici.
+    Charge et prétraite les images depuis UNE seule source (dossier, DataFrame, base64, FileStorage).
+    Stocke l'imageId original. Ne fait PAS de k-same pixel ici.
     """
-    num_sources = sum(p is not None for p in [folder_path, df_images, b64_image_list])
-    if num_sources != 1: raise ValueError("Fournir exactement une source d'images.")
+    num_sources = sum(p is not None for p in [folder_path, df_images, b64_image_list, filestorage_list])
+    if num_sources != 1:
+        raise ValueError("Fournir exactement une seule source d'images.")
     logger.info("Exécution du pré-traitement standard...")
     image_groups = defaultdict(list)
-    # --- Cas 1: DataFrame ---
+    def is_valid_preprocessed(p):
+        return p and all(k in p for k in ['grayscale_image', 'flattened_image'])
+    def handle_image(img, subject_id, image_id):
+        preprocessed = preprocess_image(img.convert('RGB'), resize_size=IMAGE_SIZE)
+        if is_valid_preprocessed(preprocessed):
+            preprocessed['imageId'] = image_id
+            image_groups[subject_id].append(preprocessed)
+        else:
+            logger.warning(f"Prétraitement échoué pour '{image_id}'. Skip.")
+    # --- 1. DataFrame ---
     if df_images is not None:
         logger.info(f"Traitement de {len(df_images)} images depuis DataFrame.")
         for index, row in tqdm(df_images.iterrows(), total=df_images.shape[0], desc="Preprocessing (DataFrame)"):
             try:
-                img = row['userFaces']; subject_id = str(row['subject_number']); image_id = row['imageId']
-                if not isinstance(img, Image.Image): logger.warning(f"Index {index} non-PIL Image. Skip."); continue
-                preprocessed = preprocess_image(img, resize_size=IMAGE_SIZE)
-                # Vérifier si les clés nécessaires existent (adaptez si preprocess_image change)
-                if preprocessed and all(k in preprocessed for k in ['grayscale_image', 'flattened_image']):
-                    preprocessed['imageId'] = image_id
-                    image_groups[subject_id].append(preprocessed)
-                else: logger.warning(f"Prétraitement échoué ou clés manquantes index {index}. Skip.")
-            except Exception as e: logger.error(f"Erreur image index {index}: {e}", exc_info=True)
-    # --- Cas 2: Dossier ---
+                img, subject_id, image_id = row['userFaces'], str(row['subject_number']), row['imageId']
+                if not isinstance(img, Image.Image):
+                    logger.warning(f"Index {index} non-PIL Image. Skip.")
+                    continue
+                handle_image(img, subject_id, image_id)
+            except Exception as e:
+                logger.error(f"Erreur image index {index}: {e}", exc_info=True)
+    # --- 2. Dossier ---
     elif folder_path is not None:
         logger.info(f"Traitement images depuis dossier: {folder_path}")
         try:
-            all_files = os.listdir(folder_path); image_files = [f for f in all_files if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pgm'))]
-            logger.info(f"Trouvé {len(image_files)} fichiers image potentiels.")
-        except Exception as e: logger.error(f"Erreur accès dossier {folder_path}: {e}"); raise
+            image_files = [f for f in os.listdir(folder_path) if
+                           f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pgm'))]
+        except Exception as e:
+            logger.error(f"Erreur accès dossier {folder_path}: {e}")
+            raise
+        logger.info(f"Trouvé {len(image_files)} fichiers image potentiels.")
         for filename in tqdm(image_files, desc="Preprocessing (Folder)"):
-             try:
-                parts = filename.split("_");
-                if len(parts) < 2: logger.warning(f"Skip: nom fichier non standard '{filename}'."); continue
-                subject_id = parts[1]; image_id = os.path.splitext(filename)[0]
-                img_path = os.path.join(folder_path, filename)
-                with Image.open(img_path) as img: preprocessed = preprocess_image(img.convert('RGB'), resize_size=IMAGE_SIZE)
-                if preprocessed and all(k in preprocessed for k in ['grayscale_image', 'flattened_image']):
-                    preprocessed['imageId'] = image_id
-                    image_groups[subject_id].append(preprocessed)
-                else: logger.warning(f"Prétraitement échoué pour '{filename}'. Skip.")
-             except UnidentifiedImageError: logger.error(f"Erreur ouverture/identification '{filename}'. Skip."); continue
-             except Exception as e: logger.error(f"Erreur traitement fichier '{filename}': {e}", exc_info=True)
-    # --- Cas 3: Liste Base64 ---
+            try:
+                parts = filename.split("_")
+                if len(parts) < 2:
+                    logger.warning(f"Nom fichier non standard '{filename}'. Skip.")
+                    continue
+                subject_id = parts[1]
+                image_id = os.path.splitext(filename)[0]
+                with Image.open(os.path.join(folder_path, filename)) as img:
+                    handle_image(img, subject_id, image_id)
+            except UnidentifiedImageError:
+                logger.error(f"Erreur ouverture/identification '{filename}'. Skip.")
+            except Exception as e:
+                logger.error(f"Erreur traitement fichier '{filename}': {e}", exc_info=True)
+    # --- 3. Liste base64 ---
     elif b64_image_list is not None:
         logger.info(f"Traitement de {len(b64_image_list)} images depuis liste Base64.")
-        subject_id = "1" # ID fixe
+        subject_id = "1"
         for i, b64_string in enumerate(tqdm(b64_image_list, desc="Preprocessing (Base64 List)")):
             try:
                 image_id = f"b64_img_{i}"
-                img_bytes = base64.b64decode(b64_string); img = Image.open(io.BytesIO(img_bytes))
-                preprocessed = preprocess_image(img.convert('RGB'), resize_size=IMAGE_SIZE)
-                if preprocessed and all(k in preprocessed for k in ['grayscale_image', 'flattened_image']):
-                    preprocessed['imageId'] = image_id
-                    image_groups[subject_id].append(preprocessed)
-                else: logger.warning(f"Prétraitement échoué image base64 index {i}. Skip.")
-            except (binascii.Error, IOError, UnidentifiedImageError) as decode_err: logger.error(f"Erreur décodage/ouverture image base64 index {i}: {decode_err}. Skip."); continue
-            except Exception as e: logger.error(f"Erreur traitement image base64 index {i}: {e}", exc_info=True)
+                img_bytes = base64.b64decode(b64_string)
+                img = Image.open(io.BytesIO(img_bytes))
+                handle_image(img, subject_id, image_id)
+            except (binascii.Error, IOError, UnidentifiedImageError) as decode_err:
+                logger.error(f"Erreur décodage image base64 index {i}: {decode_err}. Skip.")
+            except Exception as e:
+                logger.error(f"Erreur traitement image base64 index {i}: {e}", exc_info=True)
+    # --- 4. Liste FileStorage ---
+    elif filestorage_list is not None:
+        logger.info(f"Traitement de {len(filestorage_list)} fichiers FileStorage.")
+        subject_id = "1"
+        for i, file_storage in enumerate(tqdm(filestorage_list, desc="Preprocessing (FileStorage List)")):
+            try:
+                image_id = f"upload_img_{i}"
+                img = Image.open(file_storage.stream)
+                handle_image(img, subject_id, image_id)
+            except UnidentifiedImageError:
+                logger.error(f"Erreur image invalide (FileStorage) index {i}. Skip.")
+            except Exception as e:
+                logger.error(f"Erreur traitement image FileStorage index {i}: {e}", exc_info=True)
     logger.info(f"Pré-traitement terminé. {len(image_groups)} sujets traités.")
     return dict(image_groups)
 
