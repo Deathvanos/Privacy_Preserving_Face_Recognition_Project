@@ -9,7 +9,7 @@ from sklearn.datasets import fetch_lfw_people
 
 import anony_process_pipeline
 
-RECONSTRUCTED_DIR = "../../data/reconstructed"
+RECONSTRUCTED_DIR = "../../data/lfw_anony_processed"
 os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
 
 def new_save_reconstructed_images(subject_id, images):
@@ -75,8 +75,8 @@ def main():
     df = load_lfw_dataframe(min_faces_per_person=20, n_samples_per_person=20)
     print(f"DataFrame chargé avec {df.shape[0]} images réparties sur {df['subject_number'].nunique()} sujets.")
 
-    pipeline_result = anony_process_pipeline.run_pipeline(df_images=df, epsilon=0.68, n_components_ratio=0.85)
-    print("Traitement terminé. Les images reconstruites ont été enregistrées dans le dossier 'reconstructed'.")
+    pipeline_result = anony_process_pipeline.run_pipeline(df_images=df, epsilon=0.7, n_components_ratio=0.8)
+    print("Traitement terminé. Les images reconstruites ont été enregistrées dans le dossier 'lfw_anony_processed'.")
 
 if __name__ == '__main__':
     main()
