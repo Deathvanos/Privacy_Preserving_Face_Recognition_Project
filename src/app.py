@@ -21,16 +21,14 @@ The aim of the project is the development a prototype that take a photo and matc
 # ---------------------------------------------------------------------------
 from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory, session
 from flask_assets import Environment, Bundle
-from config import *
-from modules import utils
-
+import config
 from modules.gui_controller import GUIController
 from os import listdir
 
 
 app = Flask(__name__)
-app.config.from_object(Config)
-app.secret_key = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
+app.config.from_object(config.Config)
+app.secret_key = config.SECRET_KEY
 # Configure SCSS bundle
 assets = Environment(app)
 assets.url = app.static_url_path
@@ -59,11 +57,15 @@ def show_database_page():
     user_list = GUIController.get_user_list()
     return render_template("show_database.html", user_list=user_list)
 
+@app.route("/analysis")
+def analysis_page():
+    user_list = GUIController.get_user_list()
+    return render_template("analysis.html", user_list=user_list)
 
 
 @app.route("/new_people")
 def new_people_init_page():
-    GUIController.delete_temp_file()
+    #GUIController.delete_temp_file()
     return render_template("new_people.html")
 
 @app.route("/new_people", methods=['POST'])
@@ -130,8 +132,8 @@ def new_people_processing_page():
                 try: epsilon = float(epsilon)
                 except: return jsonify({'step': step, 'error': 'epsilon is not a float'}), 400
                 # Apply the process
-                ctrl.s4_apply_differential_privacy(epsilon)
-                imgs = ctrl.get_image_noised("bytes")
+                i = ctrl.s4_apply_differential_privacy(epsilon)
+                imgs = i + ctrl.get_image_noised("bytes")
             case 5:
                 # Apply the process
                 ctrl.s5_launch_ml()
@@ -187,7 +189,8 @@ def recontruct_user_action():
 
 @app.route('/api/check_photo', methods=['POST'])
 def check_photo():
-    return jsonify({'result': utils.random_bool()})
+    import random
+    return jsonify({'result': random.choice([True, False])})
 
 
 

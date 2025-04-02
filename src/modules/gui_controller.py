@@ -7,7 +7,7 @@ import numpy as np
 
 from config import IMAGE_SIZE
 from modules.image_preprocessing import preprocess_image
-from modules.peep import Peep
+#from modules.peep import Peep
 from modules.utils_image import pillow_image_to_bytes, filestorage_image_to_numpy, numpy_image_to_pillow
 from modules.database_controller import DatabaseController
 
@@ -25,7 +25,7 @@ class GUIController:
         # Workflow Attributs
         self._step = 1
         self._image_size: (int, int) = IMAGE_SIZE
-        self._peep: Peep = Peep(image_size=self._image_size)
+        #self._peep: Peep = Peep(image_size=self._image_size)
         self._optimum_components: int = -1
         # Methods
 
