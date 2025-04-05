@@ -8,7 +8,10 @@ function load_user_data() {
         htmlContent = "<br>Identification number: " + response.user_id + "<br>Values:<br><br>";
         balise = document.getElementById('db_user')
         balise.innerHTML = htmlContent;
-        displayNumpyArray(response.user_data, "db_user_table")
+        // print bdd values
+        const container = document.getElementById("db_user_table");
+        container.innerHTML = response.user_data; // Clear any previous content
+        //displayNumpyArray(response.user_data, "db_user_table")
         document.getElementById('user_container').hidden = false;
         set_error()
     }
@@ -32,18 +35,7 @@ function delete_user_request() {
 }
 
 
-function reconstruct_user_request() {
-    // Get data
-    const param_selectBox = document.getElementById('selectBox');
-    const formData = new FormData();
-    formData.append('user_id', param_selectBox.value);
-    // Prepare success method
-    function success_method(response) {
-        console.log("reconstruct_user_request ended");
-    }
-    // Call the server
-    call_process('/recontruct_user', success_method, formData);
-}
+
 
 
 function call_process(url, success_method, formData=null) {

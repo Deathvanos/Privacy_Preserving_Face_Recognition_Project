@@ -30,7 +30,7 @@ IMG_HEIGHT = 64     # Hauteur cible des images
 # IMPORTANT: 'rgb' (3 canaux) est souvent requis pour les modèles de transfert pré-entraînés.
 #            'grayscale' est plus simple et peut suffire pour un CNN simple.
 COLOR_MODE = 'grayscale'
-# Nombre de canaux, doit correspondre à COLOR_MODE
+# Nombre de c   anaux, doit correspondre à COLOR_MODE
 CHANNELS = 1 if COLOR_MODE == 'grayscale' else 3
 
 # --- Paramètres de Division des Données ---

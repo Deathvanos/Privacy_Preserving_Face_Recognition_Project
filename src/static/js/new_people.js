@@ -78,7 +78,7 @@ function step_0_upload(go_next=false) {
         }
     }
     // Call the server
-    call_process('0', success_method, formData);
+    call_process('1', success_method, formData);
 }
 
 function step_1_same_pixel(go_next=false) {
@@ -86,16 +86,17 @@ function step_1_same_pixel(go_next=false) {
     //...
     // Prepare success method
     function success_method(response, step) {
-        display_image(response.images, step);
+        display_image(response.images, step-1);
         if (go_next) {
+
             setCurrentStep(3)
             step_2_resize()
         }
     }
     // Call the server
-    call_process('1', success_method);
+    call_process('2', success_method);
 }
-
+/*
 function step_2_resize(go_next=false) {
     // Get data
     const param_width = document.getElementById('width');
@@ -105,15 +106,15 @@ function step_2_resize(go_next=false) {
     formData.append('height', param_height.value);
     // Prepare success method
     function success_method(response, step) {
-        display_image(response.images, step);
+        display_image(response.images, step-1);
         if (go_next) {
             setCurrentStep(4)
             step_3_pca()
         }
     }
     // Call the server
-    call_process('2', success_method, formData);
-}
+    call_process('3', success_method, formData);
+}*/
 
 function step_3_pca(go_next=false) {
     // Get data
@@ -122,7 +123,7 @@ function step_3_pca(go_next=false) {
     formData.append('pca_components', param_pca_components.value);
     // Prepare success method
     function success_method(response, step) {
-        display_image(response.images, step);
+        display_image(response.images, step-1);
         if (go_next) {
             setCurrentStep(5)
             step_4_noise()

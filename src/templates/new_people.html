@@ -14,7 +14,6 @@
     <div class="arrow-steps">
         <div class="step" id="step-1"> <span>Import photos</span></div>
         <div class="step" id="step-2"> <span>Apply K-same pixel</span></div>
-        <div class="step" id="step-3"> <span>Resize images</span></div>
         <div class="step" id="step-4"> <span>Generate PCA</span></div>
         <div class="step" id="step-5"> <span>Add noise</span></div>
         <div class="step" id="step-7"> <span>Save</span></div>
@@ -31,6 +30,10 @@
             <label for="fileInput" class="upload-label">Choose photos</label>
         </div>
         <div id="upload-container"></div>
+        <br>
+        <label for="size">Image size:</label>
+        <input type="number" id="size" name="size" value="100" min="47" max="1000" step="1">
+        <br>
         <button type="button" class="button" onclick="step_0_upload()">Run</button>
         <button type="button" class="button" onclick="step_0_upload(true)">Next</button>
     </div>
@@ -44,21 +47,6 @@
         <button type="button" class="button" onclick="step_1_same_pixel(true)">Next</button>
         <br><br>
         <div id="image-container-1" class="center"></div>
-    </div>
-    <!-- Resize images -->
-    <div class="panel hidden center" id="panel-3">
-        <label for="size">Image size:</label>
-        <input type="number" id="size" name="size" value="100" min="47" max="1000" step="1">
-        <br>
-        <!--
-        <label for="height">Image height:</label>
-        <input type="number" id="height" name="height" value="100" min="62" max="1000" step="1">
-        <br>
-        -->
-        <button type="button" class="button" onclick="step_2_resize()">Run</button>
-        <button type="button" class="button" onclick="step_2_resize(true)">Next</button>
-        <br><br>
-        <div id="image-container-2" class="center"></div>
     </div>
     <!-- Generate PCA -->
     <div class="panel hidden center" id="panel-4">
@@ -74,7 +62,7 @@
     <div class="panel hidden center" id="panel-5">
         <br>
         <label for="privacyBudget">Privacy Budget (epsilon):</label>
-        <input type="number" id="privacyBudget" name="privacyBudget" value="7" min="0" max="20" step="0.1">
+        <input type="number" id="privacyBudget" name="privacyBudget" value="7" min="0" max="10000" step="0.1">
         <br>
         <button type="button" class="button" onclick="step_4_noise()">Run</button>
         <button type="button" class="button" onclick="step_4_noise(true)">Next</button>

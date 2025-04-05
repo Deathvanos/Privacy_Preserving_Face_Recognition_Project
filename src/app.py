@@ -19,12 +19,12 @@ The aim of the project is the development a prototype that take a photo and matc
 # Usefully commands
 # $ pip freeze > requirements.txt; poetry init
 # ---------------------------------------------------------------------------
-from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory, session
+from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
 import config
 from modules.gui_controller import GUIController
+from modules.gui_controller2 import GUIController2
 from os import listdir
-
 
 app = Flask(__name__)
 app.config.from_object(config.Config)
@@ -49,8 +49,7 @@ def index_page():
 
 @app.route("/search_people")
 def search_people_page():
-    user_list = GUIController.get_user_list()
-    return render_template("search_people.html", user_list=user_list)
+    return render_template("search_people.html")
 
 @app.route("/show_database")
 def show_database_page():
@@ -62,100 +61,52 @@ def analysis_page():
     user_list = GUIController.get_user_list()
     return render_template("analysis.html", user_list=user_list)
 
-
 @app.route("/new_people")
 def new_people_init_page():
     #GUIController.delete_temp_file()
     return render_template("new_people.html")
 
+
+# ---------------------------------------------------------------------------
+# ------------------------- BACK POST FUNCTIONS ----------------------------------
+# ---------------------------------------------------------------------------
+
+
 @app.route("/new_people", methods=['POST'])
 def new_people_processing_page():
+    # Print income values
     print(request.form)
     print(request.files)
     # Check step value
-    step = request.form.get('step')
-    if not step:
-        return jsonify({'error': 'Step parameter is missing'}), 400
-    try: step = int(step)
-    except: return jsonify({'step': step, 'error': 'step is not an integer'}), 400
-    # Initialisation of the Controller
-    if step == 0:
-        # Get user images
-        files = request.files.getlist('fileInput')
-        if not files:
-            return jsonify({'error': 'No file part in the request'}), 400
-        # Create new Controller:
-        c = GUIController(files)
-        c.save_to_file()
-        return jsonify({'step':step, 'result': 'OK'})
-    # Retrieve controller
-    ctrl = GUIController.load_from_file()
-    if not ctrl:
-        return jsonify({'step':step, 'error': 'No controller initialized'}), 400
-    # Do the requested action
-    imgs = []
-    if ctrl.can_run_step(int(step)):
-        match step:
-            case 1:
-                ctrl.s1_apply_k_same_pixel()
-                imgs = ctrl.get_image_pixelated("bytes")
-            case 2:
-                # Check width value
-                width = request.form.get('width')
-                if not width: return jsonify({'error': 'width parameter is missing'}), 400
-                try: width = int(width)
-                except: return jsonify({'step': step, 'error': 'width is not a int'}), 400
-                # Check height value
-                height = request.form.get('height')
-                if not height: return jsonify({'error': 'height parameter is missing'}), 400
-                try: height = int(height)
-                except: return jsonify({'step': step, 'error': 'height is not a int'}), 400
-                # Apply the process
-                ctrl.s2_resize_images((width, height))
-                imgs = ctrl.get_image_resized("bytes")
-            case 3:
-                # Check pca_components value
-                pca_components = request.form.get('pca_components')
-                if not pca_components: return jsonify({'error': 'pca_components parameter is missing'}), 400
-                try: pca_components = int(pca_components)
-                except: return jsonify({'step': step, 'error': 'pca_components is not a int'}), 400
-                max_pca = ctrl.get_image_number()
-                if pca_components > max_pca:
-                    return jsonify({'step': step, 'error': f'pca_components should be between 0 and {max_pca}'}), 400
-                # Apply the process
-                ctrl.s3_generate_pca_components(pca_components)
-                imgs = ctrl.get_image_eigenface("bytes")
-            case 4:
-                # Check epsilon value
-                epsilon = request.form.get('epsilon')
-                if not epsilon: return jsonify({'error': 'epsilon parameter is missing'}), 400
-                try: epsilon = float(epsilon)
-                except: return jsonify({'step': step, 'error': 'epsilon is not a float'}), 400
-                # Apply the process
-                i = ctrl.s4_apply_differential_privacy(epsilon)
-                imgs = i + ctrl.get_image_noised("bytes")
-            case 5:
-                # Apply the process
-                ctrl.s5_launch_ml()
-            case 6:
-                # Apply the process
-                user_id = ctrl.s6_save_user()
-                # No modification in the Controller, we can skeep now
-                return jsonify({'step': step, 'result': 'end', 'user_id': user_id}), 200
-
-    else:
-         return jsonify({'step': step, 'error': "Can't run this step"}), 400
+    try: step = int(request.form['step'])
+    except KeyError: return jsonify({'error': 'Step parameter is missing'}), 400
+    except (TypeError, ValueError): return jsonify({'error': 'Step parameter must be an integer'}), 400
+    # Resolve the step number
+    response, code = {'error': "step didn't match"}, 400
+    match step:
+        case 1:
+            inputs = request.files.getlist('fileInput')
+            inputs = inputs if inputs else None
+            response, code = GUIController2.initialize_new_user(inputs)
+        case 2:
+            inputs = request.form.getlist('k_same_value')
+            inputs = inputs if inputs else None
+            inputs = 4 # TODO: To remove
+            response, code = GUIController2.apply_k_same_pixel(inputs)
+        case 3:
+            inputs = request.form.get('pca_components')
+            response, code = GUIController2.generate_pca_components(inputs)
+        case 4:
+            inputs = request.form.get('epsilon')
+            response, code = GUIController2.apply_differential_privacy(inputs)
+        case 5:
+            inputs = request.form.get('epsilon')
+            response, code = GUIController2.apply_differential_privacy(inputs)
+        case 6:
+            response, code = GUIController2.save_user_in_db()
+    return jsonify(response), code
 
 
-    # Save new modifications of the Controller
-    ctrl.save_to_file()
-    # Return good execution message
-    return jsonify({'step':step, 'result': 'end', 'images':imgs}), 200
-
-
-# ---------------------------------------------------------------------------
-# ------------------------- BACK FUNCTIONS ----------------------------------
-# ---------------------------------------------------------------------------
 
 @app.route("/get_user_list", methods=['POST'])
 def get_user_list_action():
