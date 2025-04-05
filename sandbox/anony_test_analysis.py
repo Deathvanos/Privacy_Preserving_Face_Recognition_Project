@@ -48,11 +48,11 @@ if not _modules_imported:
 MIN_FACES_PER_PERSON = 20
 N_SAMPLES_PER_PERSON = 10
 
-# Analysis Parameters - Phase 1
+# Analysis Parameters - Phase 2
 N_COMPONENTS_RATIO_RANGE = np.sort(np.round(np.arange(0.1, 1.0, 0.1), 2))
 FIXED_EPSILON_PHASE1 = 10.0
 
-# Analysis Parameters - Phase 2
+# Analysis Parameters - Phase 3
 EPSILON_RANGE = np.sort(np.round(np.concatenate([
     np.arange(0.2, 1.0, 0.1),
 ]), 3))
@@ -144,26 +144,31 @@ def calculate_average_metrics(original_b64_list: list, reconstructed_b64_list: l
 # --- End Utility Functions ---
 
 
-# --- Phase 1: n_components_ratio Optimization ---
-def run_phase1_analysis(df_images: pd.DataFrame) -> float | None:
+# --- Phase 1: k_same_pixel Optimization
+
+# --- End of Phase 1
+
+
+# --- Phase 2: n_components_ratio Optimization ---
+def run_phase2_analysis(df_images: pd.DataFrame) -> float | None:
     """
     Finds the optimal n_components_ratio.
     Selects the ratio tested *before* the one that gives minimum MSE.
     If min MSE is at the first ratio, selects the first ratio.
     """
-    logger.info("--- STARTING PHASE 1: n_components_ratio Analysis ---")
+    logger.info("--- STARTING PHASE 2: n_components_ratio Analysis ---")
     results_phase1 = []
     ratio_at_min_mse = None
     min_mse_value = np.inf
 
     if df_images is None or df_images.empty:
-        logger.error("Image DataFrame is empty. Stopping Phase 1.")
+        logger.error("Image DataFrame is empty. Stopping Phase 2.")
         return None
 
     df_images_copy = df_images.copy()
     tested_ratios_list = list(N_COMPONENTS_RATIO_RANGE)
 
-    for ratio in tqdm(tested_ratios_list, desc="Phase 1: Testing n_components_ratio"):
+    for ratio in tqdm(tested_ratios_list, desc="Phase 2: Testing n_components_ratio"):
         logger.info(f"Testing ratio = {ratio:.2f} (with epsilon = {FIXED_EPSILON_PHASE1})")
         start_time = time.time(); pipeline_output = None
         try:
@@ -198,9 +203,9 @@ def run_phase1_analysis(df_images: pd.DataFrame) -> float | None:
              ratio_at_min_mse = ratio
     # --- End Ratio Loop ---
 
-    if not results_phase1: logger.error("No results collected for Phase 1."); return None
+    if not results_phase1: logger.error("No results collected for Phase 2."); return None
     df_results_p1 = pd.DataFrame(results_phase1)
-    logger.info("\n--- PHASE 1 COMPLETE RESULTS (MSE/SSIM vs n_components_ratio) ---")
+    logger.info("\n--- PHASE 2 COMPLETE RESULTS (MSE/SSIM vs n_components_ratio) ---")
     print(df_results_p1.round(4).to_string())
 
     # --- AUTOMATIC SELECTION & HIGHLIGHT ---
@@ -223,7 +228,7 @@ def run_phase1_analysis(df_images: pd.DataFrame) -> float | None:
              logger.warning(f"Falling back to selecting the ratio with minimum MSE: {selected_optimal_ratio:.2f}")
 
         logger.info("\n**************************************************************************")
-        logger.info(f"*** AUTOMATICALLY SELECTED OPTIMAL n_components_ratio (Phase 1) ***")
+        logger.info(f"*** AUTOMATICALLY SELECTED OPTIMAL n_components_ratio (Phase 2) ***")
         logger.info(f"*** Based on Ratio Preceding Minimum MSE: ratio = {selected_optimal_ratio:.2f} ***")
         selected_metrics = df_results_p1[df_results_p1['ratio'] == selected_optimal_ratio].iloc[0]
         logger.info(f"*** -> Metrics at this ratio: MSE ~ {selected_metrics['avg_mse']:.4f}, SSIM ~ {selected_metrics['avg_ssim']:.4f} ***")
@@ -234,16 +239,16 @@ def run_phase1_analysis(df_images: pd.DataFrame) -> float | None:
 
 
     csv_path_p1 = os.path.join(OUTPUT_DIR, "phase1_n_components_ratio_analysis.csv")
-    try: df_results_p1.to_csv(csv_path_p1, index=False); logger.info(f"Phase 1 results saved to: {csv_path_p1}")
-    except Exception as e: logger.error(f"Error saving Phase 1 CSV ({csv_path_p1}): {e}", exc_info=True)
+    try: df_results_p1.to_csv(csv_path_p1, index=False); logger.info(f"Phase 2 results saved to: {csv_path_p1}")
+    except Exception as e: logger.error(f"Error saving Phase 2 CSV ({csv_path_p1}): {e}", exc_info=True)
 
-    # --- Plotting Phase 1 (Combined Plot) ---
-    logger.info("Generating combined plot for Phase 1...")
+    # --- Plotting Phase 2 (Combined Plot) ---
+    logger.info("Generating combined plot for Phase 2...")
     try:
         fig, ax1 = plt.subplots(figsize=(12, 7)) # Single plot setup
-        fig.suptitle("Phase 1: MSE/SSIM vs n_components_ratio", fontsize=16)
+        fig.suptitle("Phase 2: MSE/SSIM vs n_components_ratio", fontsize=16)
         df_plot = df_results_p1.dropna(subset=['avg_mse', 'avg_ssim'])
-        if df_plot.empty: logger.warning("No valid data to plot for Phase 1."); plt.close(fig); return selected_optimal_ratio
+        if df_plot.empty: logger.warning("No valid data to plot for Phase 2."); plt.close(fig); return selected_optimal_ratio
 
         ratios_plot = df_plot['ratio']
         color_mse = 'tab:red'; color_ssim = 'tab:blue'
@@ -295,26 +300,26 @@ def run_phase1_analysis(df_images: pd.DataFrame) -> float | None:
 
         fig.tight_layout(rect=[0, 0.05, 1, 0.95])
         plot_path_p1 = os.path.join(OUTPUT_DIR, "phase1_ratio_combined_plot.png") # New filename
-        plt.savefig(plot_path_p1); logger.info(f"Phase 1 plot saved to: {plot_path_p1}")
+        plt.savefig(plot_path_p1); logger.info(f"Phase 2 plot saved to: {plot_path_p1}")
         plt.close(fig)
 
-    except Exception as e: logger.error(f"Error generating Phase 1 plot: {e}", exc_info=True)
+    except Exception as e: logger.error(f"Error generating Phase 2 plot: {e}", exc_info=True)
 
     return selected_optimal_ratio
-# --- End Phase 1 ---
+# --- End Phase 2 ---
 
 
-# --- Phase 2: Epsilon Optimization ---
-def run_phase2_analysis(df_images: pd.DataFrame, optimal_n_components_ratio: float):
+# --- Phase 3: Epsilon Optimization ---
+def run_phase3_analysis(df_images: pd.DataFrame, optimal_n_components_ratio: float):
     """Finds the best epsilon by analyzing the MSE/SSIM trade-off."""
-    logger.info("--- STARTING PHASE 2: Epsilon Analysis ---")
-    if optimal_n_components_ratio is None: logger.error("Optimal n_components_ratio not provided. Stopping Phase 2."); return
+    logger.info("--- STARTING PHASE 3: Epsilon Analysis ---")
+    if optimal_n_components_ratio is None: logger.error("Optimal n_components_ratio not provided. Stopping Phase 3."); return
     logger.info(f"Using optimal n_components_ratio found: {optimal_n_components_ratio:.2f}")
     results_phase2 = []
-    if df_images is None or df_images.empty: logger.error("Image DataFrame is empty. Stopping Phase 2."); return
+    if df_images is None or df_images.empty: logger.error("Image DataFrame is empty. Stopping Phase 3."); return
     df_images_copy = df_images.copy()
 
-    for epsilon in tqdm(EPSILON_RANGE, desc="Phase 2: Testing epsilon"):
+    for epsilon in tqdm(EPSILON_RANGE, desc="Phase 3: Testing epsilon"):
         logger.info(f"Testing epsilon = {epsilon:.3f} (with ratio = {optimal_n_components_ratio:.2f})")
         start_time = time.time(); pipeline_output = None
         try:
@@ -341,14 +346,14 @@ def run_phase2_analysis(df_images: pd.DataFrame, optimal_n_components_ratio: flo
         results_phase2.append({'epsilon': epsilon, 'avg_mse': overall_avg_mse, 'avg_ssim': overall_avg_ssim})
     # --- End Epsilon Loop ---
 
-    if not results_phase2: logger.error("No results collected for Phase 2."); return
+    if not results_phase2: logger.error("No results collected for Phase 3."); return
     df_results_p2 = pd.DataFrame(results_phase2)
-    logger.info("\n--- PHASE 2 COMPLETE RESULTS (MSE/SSIM vs epsilon) ---")
+    logger.info("\n--- PHASE 3 COMPLETE RESULTS (MSE/SSIM vs epsilon) ---")
     print(df_results_p2.round(4).to_string())
     csv_filename_p2 = f"phase2_epsilon_analysis_ratio_{optimal_n_components_ratio:.2f}.csv"
     csv_path_p2 = os.path.join(OUTPUT_DIR, csv_filename_p2)
-    try: df_results_p2.to_csv(csv_path_p2, index=False); logger.info(f"Phase 2 results saved to: {csv_path_p2}")
-    except Exception as e: logger.error(f"Error saving Phase 2 CSV ({csv_path_p2}): {e}", exc_info=True)
+    try: df_results_p2.to_csv(csv_path_p2, index=False); logger.info(f"Phase 3 results saved to: {csv_path_p2}")
+    except Exception as e: logger.error(f"Error saving Phase 3 CSV ({csv_path_p2}): {e}", exc_info=True)
 
     # --- AUTOMATED COMPROMISE EPSILON CALCULATION ---
     logger.info("\n--- Determining Automated Compromise Epsilon ---")
@@ -374,15 +379,15 @@ def run_phase2_analysis(df_images: pd.DataFrame, optimal_n_components_ratio: flo
         elif epsilon_util_priority is not None: compromise_epsilon = epsilon_util_priority; logger.info(f"Only Utility Priority found. Compromise Epsilon set to: {compromise_epsilon:.3f}")
         elif epsilon_priv_priority is not None: compromise_epsilon = epsilon_priv_priority; logger.info(f"Only Privacy Priority found. Compromise Epsilon set to: {compromise_epsilon:.3f}")
         else: logger.warning("Neither priority candidates found. Cannot determine automated compromise epsilon.")
-    else: logger.error("No valid (non-NaN) results in Phase 2 for compromise calculation.")
+    else: logger.error("No valid (non-NaN) results in Phase 3 for compromise calculation.")
 
-    # --- Plotting Phase 2 ---
-    logger.info("Generating plot for Phase 2...")
+    # --- Plotting Phase 3 ---
+    logger.info("Generating plot for Phase 3...")
     try:
         fig, ax1 = plt.subplots(figsize=(12, 7))
-        fig.suptitle(f'Phase 2: MSE/SSIM vs Epsilon (Ratio={optimal_n_components_ratio:.2f})', fontsize=14)
+        fig.suptitle(f'Phase 3: MSE/SSIM vs Epsilon (Ratio={optimal_n_components_ratio:.2f})', fontsize=14)
         df_plot_p2 = df_results_p2.dropna(subset=['avg_mse', 'avg_ssim'])
-        if df_plot_p2.empty: logger.warning("No valid data to plot for Phase 2."); plt.close(fig); return
+        if df_plot_p2.empty: logger.warning("No valid data to plot for Phase 3."); plt.close(fig); return
         epsilons_plot = df_plot_p2['epsilon']
         color_mse = 'tab:red'; color_ssim = 'tab:blue'
         ax1.set_xlabel('Epsilon (Higher = Less Privacy / Less Noise)', fontsize=10); ax1.set_ylabel('Avg MSE (Lower = Better Utility)', color=color_mse, fontsize=10)
@@ -413,18 +418,18 @@ def run_phase2_analysis(df_images: pd.DataFrame, optimal_n_components_ratio: flo
         fig.tight_layout(rect=[0, 0.05, 1, 0.95])
         plot_filename_p2 = f"phase2_epsilon_tradeoff_plot_ratio_{optimal_n_components_ratio:.2f}.png"
         plot_path_p2 = os.path.join(OUTPUT_DIR, plot_filename_p2)
-        plt.savefig(plot_path_p2); logger.info(f"Phase 2 plot saved to: {plot_path_p2}")
+        plt.savefig(plot_path_p2); logger.info(f"Phase 3 plot saved to: {plot_path_p2}")
         plt.close(fig)
-    except Exception as e: logger.error(f"Error generating Phase 2 plot: {e}", exc_info=True)
+    except Exception as e: logger.error(f"Error generating Phase 3 plot: {e}", exc_info=True)
 
     # --- FINAL SUMMARY LOG ---
-    logger.info("\n--- AUTOMATED TRADE-OFF SUMMARY (Phase 2) ---")
+    logger.info("\n--- AUTOMATED TRADE-OFF SUMMARY (Phase 3) ---")
     if compromise_epsilon is not None:
          compromise_row = df_valid_p2.iloc[(df_valid_p2['epsilon'] - compromise_epsilon).abs().argsort()[:1]]
          if not compromise_row.empty:
               compromise_row = compromise_row.iloc[0]
               logger.info("\n**************************************************************************")
-              logger.info(f"*** AUTOMATICALLY SELECTED COMPROMISE Epsilon (Phase 2) ***")
+              logger.info(f"*** AUTOMATICALLY SELECTED COMPROMISE Epsilon (Phase 3) ***")
               logger.info(f"*** Based on midpoint/available candidates: Epsilon ~ {compromise_epsilon:.3f} ***")
               logger.info(f"*** -> Metrics near this Epsilon: SSIM ~ {compromise_row['avg_ssim']:.4f}, MSE ~ {compromise_row['avg_mse']:.2f} ***")
               logger.info(f"*** -> Compare with Thresholds: SSIM (<{SSIM_PRIVACY_THRESHOLD}? {'Yes' if compromise_row['avg_ssim'] < SSIM_PRIVACY_THRESHOLD else 'NO'}), MSE (<{MSE_UTILITY_THRESHOLD}? {'Yes' if compromise_row['avg_mse'] < MSE_UTILITY_THRESHOLD else 'NO'}) ***")
@@ -432,8 +437,8 @@ def run_phase2_analysis(df_images: pd.DataFrame, optimal_n_components_ratio: flo
          else: logger.warning("Could not find data point near calculated compromise epsilon to display metrics.")
     else:
          logger.warning("\nNo suitable compromise Epsilon could be automatically determined based on the defined thresholds and logic.")
-         logger.warning("Please review the Phase 2 results table and plot to make a manual selection or adjust thresholds/logic.")
-# --- End Phase 2 ---
+         logger.warning("Please review the Phase 3 results table and plot to make a manual selection or adjust thresholds/logic.")
+# --- End Phase 3 ---
 
 
 # --- Main Execution Function ---
@@ -446,14 +451,14 @@ def main():
     df_lfw = load_lfw_dataframe_for_analysis(min_faces=MIN_FACES_PER_PERSON, n_samples=N_SAMPLES_PER_PERSON)
     if df_lfw is None: logger.critical("LFW data loading failed. Stopping script."); return
 
-    # Phase 1
-    auto_optimal_ratio = run_phase1_analysis(df_lfw)
+    # Phase 2
+    auto_optimal_ratio = run_phase2_analysis(df_lfw)
 
     if auto_optimal_ratio is not None:
-        # Phase 2
-        run_phase2_analysis(df_lfw, auto_optimal_ratio)
+        # Phase 3
+        run_phase3_analysis(df_lfw, auto_optimal_ratio)
     else:
-        logger.error("Phase 1 failed or did not find an optimal ratio. Phase 2 cancelled.")
+        logger.error("Phase 2 failed or did not find an optimal ratio. Phase 3 cancelled.")
 
     end_global_time = time.time()
     logger.info("==========================================================")
