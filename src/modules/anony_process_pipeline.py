@@ -89,6 +89,9 @@ import pandas as pd
 from tqdm import tqdm
 
 
+# ---------------------------------------
+# Étape 1 : Preprocessing
+# ---------------------------------------
 def run_preprocessing(
         folder_path: Optional[str] = None,
         df_images: Optional[pd.DataFrame] = None,
