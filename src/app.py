@@ -19,92 +19,181 @@ The aim of the project is the development a prototype that take a photo and matc
 # Usefully commands
 # $ pip freeze > requirements.txt; poetry init
 # ---------------------------------------------------------------------------
-from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory
-from config import *
-
-import modules.utils as utils
-from modules.peep import Peep
-from modules.main import Main
-
-import os
-from PIL import Image
-import io
-import pandas as pd
-import base64
+from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory, session
+from flask_assets import Environment, Bundle
+import config
+from modules.gui_controller import GUIController
+from os import listdir
 
 
 app = Flask(__name__)
-app.config.from_object(Config)
-app.secret_key = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
-#app.config['UPLOAD_FOLDER'] = os.path.join('src', 'static', 'uploads')
+app.config.from_object(config.Config)
+app.secret_key = config.SECRET_KEY
+# Configure SCSS bundle
+assets = Environment(app)
+assets.url = app.static_url_path
+for filename in listdir(f"src/{assets.url}/css"):
+    if filename.endswith('.scss'):
+        name = filename[:-5]
+        scss = Bundle(f"css/{filename}", filters='libsass', output=f'css/{name}.css')
+        assets.register(f"scss_{name}", scss)
+
 
 
 # ---------------------------------------------------------------------------
 # ------------------------- WEB PAGE ----------------------------------------
 # ---------------------------------------------------------------------------
 @app.route("/")
-def index():
+def index_page():
     return render_template("index.html")
 
 @app.route("/search_people")
-def search_people():
-    return render_template("search_people.html")
-
-@app.route("/new_people")
-def new_people():
-    return render_template("new_people.html")
-
+def search_people_page():
+    user_list = GUIController.get_user_list()
+    return render_template("search_people.html", user_list=user_list)
 
 @app.route("/show_database")
-def show_database():
-    return render_template("show_database.html")
+def show_database_page():
+    user_list = GUIController.get_user_list()
+    return render_template("show_database.html", user_list=user_list)
+
+@app.route("/analysis")
+def analysis_page():
+    user_list = GUIController.get_user_list()
+    return render_template("analysis.html", user_list=user_list)
+
+
+@app.route("/new_people")
+def new_people_init_page():
+    #GUIController.delete_temp_file()
+    return render_template("new_people.html")
 
 @app.route("/new_people", methods=['POST'])
-def new_people_processing():
-    if not request.files.getlist('fileInput'):
-        print("No file part")
-        error = "No file part"
-        return  render_template('new_people.html', error=error)
+def new_people_processing_page():
+    print(request.form)
+    print(request.files)
+    # Check step value
+    step = request.form.get('step')
+    if not step:
+        return jsonify({'error': 'Step parameter is missing'}), 400
+    try: step = int(step)
+    except: return jsonify({'step': step, 'error': 'step is not an integer'}), 400
+    # Initialisation of the Controller
+    if step == 0:
+        # Get user images
+        files = request.files.getlist('fileInput')
+        if not files:
+            return jsonify({'error': 'No file part in the request'}), 400
+        # Create new Controller:
+        c = GUIController(files)
+        c.save_to_file()
+        return jsonify({'step':step, 'result': 'OK'})
+    # Retrieve controller
+    ctrl = GUIController.load_from_file()
+    if not ctrl:
+        return jsonify({'step':step, 'error': 'No controller initialized'}), 400
+    # Do the requested action
+    imgs = []
+    if ctrl.can_run_step(int(step)):
+        match step:
+            case 1:
+                ctrl.s1_apply_k_same_pixel()
+                imgs = ctrl.get_image_pixelated("bytes")
+            case 2:
+                # Check width value
+                width = request.form.get('width')
+                if not width: return jsonify({'error': 'width parameter is missing'}), 400
+                try: width = int(width)
+                except: return jsonify({'step': step, 'error': 'width is not a int'}), 400
+                # Check height value
+                height = request.form.get('height')
+                if not height: return jsonify({'error': 'height parameter is missing'}), 400
+                try: height = int(height)
+                except: return jsonify({'step': step, 'error': 'height is not a int'}), 400
+                # Apply the process
+                ctrl.s2_resize_images((width, height))
+                imgs = ctrl.get_image_resized("bytes")
+            case 3:
+                # Check pca_components value
+                pca_components = request.form.get('pca_components')
+                if not pca_components: return jsonify({'error': 'pca_components parameter is missing'}), 400
+                try: pca_components = int(pca_components)
+                except: return jsonify({'step': step, 'error': 'pca_components is not a int'}), 400
+                max_pca = ctrl.get_image_number()
+                if pca_components > max_pca:
+                    return jsonify({'step': step, 'error': f'pca_components should be between 0 and {max_pca}'}), 400
+                # Apply the process
+                ctrl.s3_generate_pca_components(pca_components)
+                imgs = ctrl.get_image_eigenface("bytes")
+            case 4:
+                # Check epsilon value
+                epsilon = request.form.get('epsilon')
+                if not epsilon: return jsonify({'error': 'epsilon parameter is missing'}), 400
+                try: epsilon = float(epsilon)
+                except: return jsonify({'step': step, 'error': 'epsilon is not a float'}), 400
+                # Apply the process
+                i = ctrl.s4_apply_differential_privacy(epsilon)
+                imgs = i + ctrl.get_image_noised("bytes")
+            case 5:
+                # Apply the process
+                ctrl.s5_launch_ml()
+            case 6:
+                # Apply the process
+                user_id = ctrl.s6_save_user()
+                # No modification in the Controller, we can skeep now
+                return jsonify({'step': step, 'result': 'end', 'user_id': user_id}), 200
 
-    files = request.files.getlist('fileInput')
-    #print(len(request.form), request.form)
-    #print(len(files), type(files[0]), files)
+    else:
+         return jsonify({'step': step, 'error': "Can't run this step"}), 400
 
-    file_urls = []
-    for file in files:
-        pillow_image = Image.open(io.BytesIO(file.read()))
-        file_urls.append(pillow_image)
-    #print(file_urls)
 
-    id_sujet = 16
-    df_images = pd.DataFrame({'userFaces':file_urls, "subject_number": id_sujet, "imageId":range(1, len(file_urls)+1)})
-    #print(df_images)
+    # Save new modifications of the Controller
+    ctrl.save_to_file()
+    # Return good execution message
+    return jsonify({'step':step, 'result': 'end', 'images':imgs}), 200
 
-    workflow = Main().load_and_process_from_dataframe(df=df_images, target_subject=id_sujet, epsilon=0.01, method='bounded', unbounded_bound_type='l2').get(id_sujet)
-    eigenfaces_images = workflow.get_eigenfaces('bytes')
-    noised_images = workflow.get_noised_images('bytes')
-
-    return render_template("result.html", eigenfaces_list=eigenfaces_images+noised_images)
 
 # ---------------------------------------------------------------------------
 # ------------------------- BACK FUNCTIONS ----------------------------------
 # ---------------------------------------------------------------------------
 
+@app.route("/get_user_list", methods=['POST'])
+def get_user_list_action():
+    print(request.form)
+    print(request.files)
+    user_id = request.form.get('user_id')
+    user_data = GUIController.get_user_data(int(user_id))
+    # Return good execution message
+    return jsonify({'result': 'end', 'user_id':user_id, "user_data":user_data.tolist()}), 200
+
+@app.route("/delete_user", methods=['POST'])
+def delete_user_action():
+    print(request.form)
+    print(request.files)
+    print("delete_user called")
+    user_id = request.form.get('user_id')
+    result = GUIController.delete_user(int(user_id))
+    # Return good execution message
+    return jsonify({'result': 'end', 'user_id':user_id, "nb_rows_delete": result}), 200
+
+
+@app.route("/recontruct_user", methods=['POST'])
+def recontruct_user_action():
+    print(request.form)
+    print(request.files)
+    print("recontruct_user called")
+    user_id = request.form.get('user_id')
+    # Return good execution message
+    return jsonify({'result': 'end', 'user_id':user_id}), 200
+
+
 @app.route('/api/check_photo', methods=['POST'])
 def check_photo():
-    return jsonify({'result': utils.random_bool()})
+    import random
+    return jsonify({'result': random.choice([True, False])})
 
-#@app.route('/api/db_search_all', methods=['POST'])
-#def db_search_all():
-    #return jsonify({'result': Config.db.select_all()})
 
-#@app.route('/api/db_search_image', methods=['POST'])
-#def db_search_image(id_subject, id_image):
-    #return jsonify({'result': Config.db.select_image(id_subject, id_image)})
 
-#@app.route('/static/uploads/<filename>')
-#def uploaded_file(filename):
-    #return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 # ---------------------------------------------------------------------------
 # ------------------------- MAIN --------------------------------------------
 # ---------------------------------------------------------------------------

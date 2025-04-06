@@ -1,0 +1,105 @@
+
+//-----------------------------------------------------//
+//--------------// ARROW-STEP ELEMENTS //--------------//
+//-----------------------------------------------------//
+// https://www.sliderrevolution.com/resources/css-arrow/
+// Variables
+$step-bg-color: #d9e3f7;
+$step-border-color: #fff;
+$step-current-bg-color: #23468c;
+$step-color: #666;
+$step-done-color: #23468c;
+$step-font-size: 14px;
+$step-padding: 10px 10px 10px 30px;
+$step-min-width: 50px;
+$step-margin: 0 3px;
+$step-border-radius: 4px;
+$step-transition: 0.2s ease;
+$step-done-transition: 0.3s ease 0.5s;
+// Mixin for arrow
+@mixin arrow($direction, $color) {
+  content: " ";
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 19px solid transparent;
+  border-bottom: 17px solid transparent;
+  border-left: 17px solid $color;
+  z-index: 2;
+  transition: border-color $step-transition;
+  @if $direction == right {right: -17px;}
+  @else if $direction == left {
+    left: 0;
+    border-left-color: $step-border-color;
+    z-index: 0;
+  }
+}
+// Styles
+.arrow-steps {
+    display: flex;
+    align-content: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  .step {
+    font-size: $step-font-size;
+    text-align: center;
+    color: $step-color;
+    cursor: default;
+    margin: $step-margin;
+    padding: $step-padding;
+    min-width: $step-min-width;
+    float: left;
+    position: relative;
+    background-color: $step-bg-color;
+    &:after {@include arrow(right, $step-bg-color);}
+    &:before {@include arrow(left, $step-border-color);}
+    &:first-child {
+      &:before {border: none;}
+      border-top-left-radius: $step-border-radius;
+      border-bottom-left-radius: $step-border-radius;
+    }
+    &.current {
+      color: #fff;
+      background-color: $step-current-bg-color;
+      &:after {border-left-color: $step-current-bg-color;}
+    }
+  }
+}
+
+
+
+//------------------------------------------------------//
+//-----------------// IMAGE CONTAINER //----------------//
+//------------------------------------------------------//
+$primary-color: #64aad2;
+$white: #fff;
+
+.upload-button {
+    margin-bottom: 10px;
+}
+
+.upload-label {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: $primary-color;
+    color: $white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#upload-container {
+    border: 2px solid $primary-color;
+    margin-inline: 5%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+    gap: 2.5px;
+}
+
+.upload-image {
+    width: 100%;
+    height: auto;
+    max-width: 100px;
+    max-height: 100px;
+    object-fit: cover;
+}

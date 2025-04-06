@@ -1,0 +1,16 @@
+{% extends 'tpl/template.html' %}
+{% block title %}Template page{% endblock %} <!-- Change the name of the page -->
+{% block head %}
+    <!--<link rel="stylesheet" href="{{url_for('static', filename='css/template.css')}}">--> <!-- Add CSS file -->
+    <!--<script src="{{ url_for('static', filename='js/template.js') }}"></script>--> <!-- Add JS file -->
+{% endblock %}
+
+{% block header %}{% include 'tpl/header.html' %}{% endblock %}
+
+{% block body %}
+    <h1>Title page</h1>
+    <!-- Add your content... -->
+    <p>Lorem ipsum</p>
+{% endblock %}
+
+{% block footer %}{% include 'tpl/footer.html' %}{% endblock %}

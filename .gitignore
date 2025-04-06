@@ -49,6 +49,7 @@ build/
 /src/modules/logs
 /src/modules/show_test_subject
 /data
+
 /analysis/analysis_results_auto_v2
 /analysis/show_test_subject
 /analysis/visualizations_subject_1

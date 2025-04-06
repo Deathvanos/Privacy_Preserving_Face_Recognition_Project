@@ -21,9 +21,8 @@ function triggerFileInput() {
     document.getElementById('fileInput').click();
 }
 
-
+// TO DELETE
 function checkPhoto() {
-
     const param = 'exemple';
     $.ajax({
         url: '/api/check_photo',

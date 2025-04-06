@@ -1,0 +1,108 @@
+/* --------------------------------------------------------------------------- */
+/* ------------------------------- GENERAL ----------------------------------- */
+/* --------------------------------------------------------------------------- */
+
+body {
+    background-color: #b8d8ef;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+}
+
+.center {
+    text-align: center
+}
+
+/* --------------------------------------------------------------------------- */
+/* ------------------------------- HEADER ------------------------------------ */
+/* --------------------------------------------------------------------------- */
+
+header {
+    background-color: #001D64;
+    color: #EBC331;
+    text-align: center;
+    padding: 5px;
+}
+
+.onglet{
+    border-radius: 7px 7px 0 0;
+    font-family: inherit;
+    background-color: olive;
+    color: black;
+    padding: 10px;
+    border: none;
+    display: inline-block;
+    text-decoration: none;
+}
+
+.onglet:hover{
+    cursor: pointer;
+    background-color: #caca38;
+}
+
+.logo {
+    width: 15px
+}
+/* --------------------------------------------------------------------------- */
+/* ------------------------------- FOOTER ------------------------------------ */
+/* --------------------------------------------------------------------------- */
+
+footer {
+    background-color: #001D64;
+    color: #EBC331;
+    text-align: center;
+    padding-block: 5px;
+    width: 100%;
+    margin-top: 5%;
+}
+
+footer > a {
+    text-decoration: none;
+    display: inline-block;
+    color: #EBC331;
+}
+
+
+//------------------------------------------------------//
+//--------------// ARROW PANEL ELEMENTS //--------------//
+//------------------------------------------------------//
+$primary-color: #64aad2;
+$white: #fff;
+
+.hidden {
+    display: none;
+}
+
+.panel {
+    padding: 20px;
+    border: 1px solid #64aad2;
+    margin-top: 10px;
+}
+
+.button {
+    display: inline-block;
+    padding: 15px 30px;
+    background-color: $primary-color;
+    color: $white;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    margin-top: 25px;
+}
+
+#error {
+    color: red;
+    text-align: center;
+    font-weight: bold;
+}
+
+.valid {
+    color: green;
+    text-align: center;
+    font-weight: bold;
+}

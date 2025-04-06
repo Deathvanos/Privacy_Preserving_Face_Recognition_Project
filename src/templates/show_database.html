@@ -1,23 +1,30 @@
 {% extends 'tpl/template.html' %}
 {% block title %}Show Database{% endblock %}
 {% block head %}
+    <link rel="stylesheet" href="{{url_for('static', filename='css/show_database.css')}}">
     <script src="{{ url_for('static', filename='js/show_database.js') }}"></script>
 {% endblock %}
 
 {% block header %}{% include 'tpl/header.html' %}{% endblock %}
 
 {% block body %}
-    <div class="main-block">
-        <h1 class="main-block">🕵️‍♂️ Privacy-preserving face recognition App 🕵️‍♀️</h1>
-        <br><hr><br>
-        <p>show_database</p>
-        <div id="db"></div>
-
-        <label for="db_all">Choose an image:</label>
-        <select name="db_all" id="db_all"></select>
-        <img src="{{ url_for('static', filename='assets/PPFR_logo.jpeg') }}" alt="Image title" class="image" id="image">
-
-
+    <p id="error"></p>
+    <div class="center">
+        <h2>Show Database</h2>
+        <label for="selectBox">User login:</label>
+        <select id="selectBox" name="selectBox" onchange="load_user_data()">
+            <option value="" disabled selected>Select a user</option>
+            {% for user_id in user_list %}
+                <option value="{{ user_id }}">User {{ user_id }}</option>
+            {% endfor %}
+        </select>
+        <div id="user_container" hidden>
+            <div id="db_user"></div>
+            <div id="db_user_table"></div>
+            <br>
+            <button type="button" class="button" id="delete_id" onclick="delete_user_request()">⚠️ Delete ⚠️</button>
+            <button type="button" class="button" id="reconstruct_id" onclick="reconstruct_user_request()">📷️ Reconstruct user image 📷️</button>
+        </div>
     </div>
 {% endblock %}
 

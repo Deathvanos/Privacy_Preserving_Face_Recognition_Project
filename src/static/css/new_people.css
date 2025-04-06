@@ -1,155 +1,91 @@
-
-
-.button-run {
-    display: inline-block;
-    padding: 30px 60px;
-    background-color: #64aad2;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-    border: none;
-    margin-top: 25px;
+.arrow-steps {
+  display: flex;
+  align-content: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.arrow-steps .step {
+  font-size: 14px;
+  text-align: center;
+  color: #666;
+  cursor: default;
+  margin: 0 3px;
+  padding: 10px 10px 10px 30px;
+  min-width: 50px;
+  float: left;
+  position: relative;
+  background-color: #d9e3f7;
+}
+.arrow-steps .step:after {
+  content: " ";
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 19px solid transparent;
+  border-bottom: 17px solid transparent;
+  border-left: 17px solid #d9e3f7;
+  z-index: 2;
+  transition: border-color 0.2s ease;
+  right: -17px;
+}
+.arrow-steps .step:before {
+  content: " ";
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 19px solid transparent;
+  border-bottom: 17px solid transparent;
+  border-left: 17px solid #fff;
+  z-index: 2;
+  transition: border-color 0.2s ease;
+  left: 0;
+  border-left-color: #fff;
+  z-index: 0;
+}
+.arrow-steps .step:first-child {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+.arrow-steps .step:first-child:before {
+  border: none;
+}
+.arrow-steps .step.current {
+  color: #fff;
+  background-color: #23468c;
+}
+.arrow-steps .step.current:after {
+  border-left-color: #23468c;
 }
 
-
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ----- CONTAINER ----- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-
-.container {
-    display: flex;
-}
-
-.container-left {
-    width: 60%;
-}
-
-.container-right {
-    width: 40%;
-}
-
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ----- IMAGE LIST ---- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-
-
-#imgVisual {
-    border: 2px solid #64aad2;
-    margin-inline: 5%;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
-    gap: 2.5px;
-}
-
-.preview-image {
-    width: 100%;
-    height: auto;
-    max-width: 100px;
-    max-height: 100px;
-    object-fit: cover;
-}
-
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- - LOAD IMAGE BUTTON - ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-
-.upload-container {
-    text-align: center;
-    margin-bottom: 10px;
+.upload-button {
+  margin-bottom: 10px;
 }
 
 .upload-label {
-    display: inline-block;
-    padding: 10px 20px;
-    background-color: #64aad2;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-#preview {
-    max-width: 100%;
-    height: 20em;
-    border: 2px solid #64aad2;
-    border-radius: 5px;
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-#photoActions > button {
-    margin-block: 2%;
-    border-radius: 7px;
-    font-family: inherit;
-    background-color: olive;
-    color: black;
-    padding: 10px;
-    border: none;
-    display: inline-block;
-    text-decoration: none;
-}
-
-#photoActions > button:hover {
-    cursor: pointer;
-    background-color: #caca38;
-}
-
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ------- TOGGLE ------ ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
-
-.toggle {
-  --s: 20px; /* adjust this to control the size*/
-
-  height: calc(var(--s) + var(--s)/5);
-  width: auto; /* some browsers need this */
-  aspect-ratio: 2.25;
-  border-radius: var(--s);
-  margin: calc(var(--s)/2);
-  display: grid;
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: #64aad2;
+  color: #fff;
+  border-radius: 5px;
   cursor: pointer;
-  background-color: #38acdc;
-  box-sizing: content-box;
-  overflow: hidden;
-  transition: .3s .1s;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-}
-.toggle:before{
-  content: "";
-  padding: calc(var(--s)/10);
-  --_g: radial-gradient(circle closest-side at calc(100% - var(--s)/2) 50%,#000 96%,#0000);
-  background:
-    var(--_g) 0 /var(--_p,var(--s)) 100% no-repeat content-box,
-    var(--_g) var(--_p,0)/var(--s)  100% no-repeat content-box,
-    #fff;
-  mix-blend-mode: darken;
-  filter: blur(calc(var(--s)/12)) contrast(11);
-  transition: .4s, background-position .4s .1s,
-    padding cubic-bezier(0,calc(var(--_i,-1)*200),1,calc(var(--_i,-1)*200)) .25s .1s;
-}
-.toggle:checked {
-  background-color: #3cf32b;
-}
-.toggle:checked:before {
-  padding: calc(var(--s)/10 + .05px) calc(var(--s)/10);
-  --_p: 100%;
-  --_i: 1;
 }
 
-.toggle-container {
-  place-items: center;
-  display: flex;
-  justify-content: center;
+#upload-container {
+  border: 2px solid #64aad2;
+  margin-inline: 5%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+  gap: 2.5px;
 }
 
+.upload-image {
+  width: 100%;
+  height: auto;
+  max-width: 100px;
+  max-height: 100px;
+  object-fit: cover;
+}
 
+/*# sourceMappingURL=new_people.css.map */

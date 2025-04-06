@@ -8,10 +8,15 @@
 {% block header %}{% include 'tpl/header.html' %}{% endblock %}
 
 {% block body %}
-    <div class="main-block">
-        <h1 class="main-block">🕵️‍♂️ Privacy-preserving face recognition App 🕵️‍♀️</h1>
-        <br><hr>
-        <div class="upload-container">
+    <div class="center">
+        <label for="selectBox">User login:</label>
+        <select id="selectBox" name="selectBox">
+            <option value="" disabled selected>Select a user</option>
+            {% for user_id in user_list %}
+                <option value="{{ user_id }}">User {{ user_id }}</option>
+            {% endfor %}
+        </select>
+        <div class="upload-button">
             <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="previewImage(event)">
             <label for="fileInput" class="upload-label">Choose a photo</label>
             <img id="preview" class="photo" src="#" alt="Aperçu de l'image" style="display: none;" onclick="triggerFileInput()">

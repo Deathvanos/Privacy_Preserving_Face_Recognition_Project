@@ -1,11 +1,14 @@
 import base64
 import io
 import os
+import PIL
 from PIL import Image
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from werkzeug.datastructures import FileStorage
+
 
 
 def load_images(image_folder: str, subject_prefix: str = None,
@@ -129,44 +132,6 @@ def load_data(filename: str):
     return np.load(filename)
 
 
-def image_pillow_to_bytes(image: Image.Image) -> str:
-    """
-    Convertit une image PIL en bytes encodés en base64.
-
-    Args:
-        image (PIL.Image.Image): Image à convertir.
-
-    Returns:
-        str: Chaîne encodée en base64.
-    """
-    if not isinstance(image, Image.Image):
-        raise ValueError("'image' doit être une image PIL valide.")
-    buffer = io.BytesIO()
-    image.save(buffer, format='JPEG')
-    encoded = base64.b64encode(buffer.getvalue()).decode()
-    return encoded
-
-
-def image_numpy_to_pillow(image: np.ndarray, resized_size: tuple = None) -> Image.Image:
-    """
-    Convertit un tableau NumPy en image PIL.
-
-    Args:
-        image (np.ndarray): Tableau représentant l'image.
-        resized_size (tuple, optional): Taille de redimensionnement si l'image est aplatie.
-
-    Returns:
-        PIL.Image.Image: Image convertie.
-    """
-    if image is None or not isinstance(image, np.ndarray):
-        raise ValueError("'image' doit être un tableau NumPy valide.")
-    if image.ndim == 1:
-        if resized_size is None:
-            raise ValueError("'resized_size' est requis pour une image 1D.")
-        image = image.reshape(resized_size)
-    return Image.fromarray((image * 255).astype(np.uint8))
-
-
 def calculate_mse(image_a: np.ndarray, image_b: np.ndarray, image_size: tuple) -> float:
     """
     Calcule l'erreur quadratique moyenne (MSE) entre deux images.
@@ -205,3 +170,73 @@ def calculate_ssim(image_a: np.ndarray, image_b: np.ndarray, data_range: float =
     if image_b.ndim == 3:
         image_b = np.dot(image_b[..., :3], [0.2989, 0.5870, 0.1140])
     return ssim(image_a, image_b, data_range=data_range)
+
+
+
+
+def filestorage_image_to_pil(element: FileStorage|list[FileStorage]) -> PIL.Image.Image|list[PIL.Image.Image]:
+    """Converts a FileStorage Image or a list of FileStorage Image to PIL image(s)."""
+    if element is None:
+        raise ValueError("no element for filestorage_image_to_pil()")
+    if isinstance(element, list):
+        return [Image.open(io.BytesIO(image.read())) for image in element]
+    else:
+        return Image.open(io.BytesIO(element.read()))
+
+
+def filestorage_image_to_numpy(element: FileStorage | list[FileStorage]) -> np.ndarray | list[np.ndarray]:
+    """Converts a FileStorage Image or a list of FileStorage Image to numpy array(s) with proper color channels."""
+    if element is None:
+        raise ValueError("no element for filestorage_image_to_numpy()")
+    if isinstance(element, list):
+        return [np.array(Image.open(io.BytesIO(image.read())).convert('RGB')) for image in element]
+    else:
+        return np.array(Image.open(io.BytesIO(element.read())).convert('RGB'))
+
+def pillow_image_to_bytes(element: PIL.Image.Image|list[PIL.Image.Image]) -> str|list[str]:
+    """Converts a PIL image or a list of PIL image to a bytes string image(s)."""
+    if element is None:
+        raise ValueError("no element for pillow_image_to_bytes()")
+    def convert(image):
+        if not isinstance(image, Image.Image):
+            raise ValueError("'image' must be a valid PIL Image object.")
+        buffer = io.BytesIO()
+        image.save(buffer, format='JPEG')
+        return base64.b64encode(buffer.getvalue()).decode()
+    if isinstance(element, list):
+        return [convert(image) for image in element]
+    else:
+        return convert(element)
+
+
+def numpy_image_to_pillow(element: np.ndarray | list[np.ndarray], resized_size: (int, int) = None,
+                          list_mode: bool = False) -> Image.Image | list[Image.Image]:
+    """Converts a NumPy array or a list of NumPy array to a PIL image(s)."""
+    if element is None:
+        raise ValueError("no element for numpy_image_to_pillow()")
+
+    def convert(image):
+        if image is None or not isinstance(image, np.ndarray):
+            raise ValueError("'image' must be a valid NumPy array.")
+        elif image.ndim == 1:
+            if resized_size is None:
+                raise ValueError("'resized_size' must be provided because the image is one-dimensional.")
+            image = image.reshape(resized_size)
+
+        # Assurez-vous que les valeurs sont dans la plage correcte
+        if image.dtype != np.uint8:
+            image = (image * 255).astype(np.uint8)
+
+        # Gérez les canaux de couleur
+        if image.ndim == 2:
+            return Image.fromarray(image, mode='L')  # Image en niveaux de gris
+        elif image.ndim == 3 and image.shape[2] == 3:
+            return Image.fromarray(image, mode='RGB')  # Image en couleur
+        else:
+            raise ValueError("Unsupported image shape: {}".format(image.shape))
+
+    if isinstance(element, list) or list_mode:
+        return [convert(image) for image in element]
+    else:
+        return convert(element)
+

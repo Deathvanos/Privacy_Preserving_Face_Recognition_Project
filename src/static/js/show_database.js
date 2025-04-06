@@ -1,47 +1,103 @@
-get_database();
+function load_user_data() {
+    // Get data
+    const param_selectBox = document.getElementById('selectBox');
+    const formData = new FormData();
+    formData.append('user_id', param_selectBox.value);
+    // Prepare success method
+    function success_method(response) {
+        htmlContent = "<br>Identification number: " + response.user_id + "<br>Values:<br><br>";
+        balise = document.getElementById('db_user')
+        balise.innerHTML = htmlContent;
+        displayNumpyArray(response.user_data, "db_user_table")
+        document.getElementById('user_container').hidden = false;
+        set_error()
+    }
+    // Call the server
+    call_process('/get_user_list', success_method, formData);
+}
 
-function get_database() {
+
+function delete_user_request() {
+    // Get data
+    const param_selectBox = document.getElementById('selectBox');
+    const formData = new FormData();
+    formData.append('user_id', param_selectBox.value);
+    // Prepare success method
+    function success_method(response) {
+        set_error("User "+ response.user_id + " has been deleted. <br>The page will be reloaded in 3 seconds.");
+        setTimeout(() => {window.location.reload();}, 3000);
+    }
+    // Call the server
+    call_process('/delete_user', success_method, formData);
+}
+
+
+function reconstruct_user_request() {
+    // Get data
+    const param_selectBox = document.getElementById('selectBox');
+    const formData = new FormData();
+    formData.append('user_id', param_selectBox.value);
+    // Prepare success method
+    function success_method(response) {
+        console.log("reconstruct_user_request ended");
+    }
+    // Call the server
+    call_process('/recontruct_user', success_method, formData);
+}
+
+
+function call_process(url, success_method, formData=null) {
+    // Call the server
     $.ajax({
-        url: '/api/db_search_all',
+        url: url,
         type: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({}),
-        success: function(data) {
-            // Traitez le résultat ici
-            const res = document.getElementById('db_all')
-            console.log(data)
-            res.innerHTML = "";
-            for (let i = 0; i < data.result.length; i++) {
-                res.innerHTML += `<option value="${data.result[i]}">${data.result[i]}</option>\n`;
-            }
-
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (response) {
+            console.log(response);
+            // Delete error if exist
+            set_error();
+            // Do the success process
+            success_method(response)
         },
-        error: function(error) {console.error('Erreur Jquery:', error);}
-    });
-}
-
-
-function change_image(image_path) {
-    let image = document.getElementById('image');
-    image.src = "{{ url_for('static', filename='..\\..\\"+image_path+"') }}";
-    console.log('change img')
-}
-
-
-document.addEventListener('DOMContentLoaded', function () {
-
-    // SELECT_BOX: db_all
-    const selectBox_db_all = document.getElementById('db_all');
-    let previousValue = null;
-    selectBox_db_all.addEventListener('change', function () {
-        const selectedValue = selectBox_db_all.value;
-        if (selectedValue !== previousValue) {
-            console.log('Selected value:', selectedValue);
-            change_image(selectedValue);
-            previousValue = selectedValue;
+        error: function (error) {
+            set_error(error.responseJSON ? error.responseJSON.error : 'Unknown error');
         }
     });
+}
 
-});
+function set_error(text='') {
+    const errorContainer = document.getElementById('error');
+    errorContainer.innerHTML = `${text}`;
+}
 
+
+// Function to render the NumPy array
+function displayNumpyArray(array, id_balise) {
+    const table = document.createElement("table");
+    table.className = 'table';
+    array.forEach((row, rowIndex) => {
+        const tr = document.createElement("tr");
+        tr.className = 'cell';
+        // Add an index
+        const indexTd = document.createElement("td");
+        indexTd.textContent = `Vector ${rowIndex + 1}`;
+        indexTd.className = 'cell';
+        tr.appendChild(indexTd);
+        // Add values
+        row.forEach(cell => {
+            const td = document.createElement("td");
+            td.textContent = cell;
+            td.className = 'cell';
+            tr.appendChild(td);
+        });
+        table.appendChild(tr);
+    });
+    // Append the table to a container (or body)
+    const container = document.getElementById(id_balise);
+    container.className = 'table-container';
+    container.innerHTML = ""; // Clear any previous content
+    container.appendChild(table);
+}
 

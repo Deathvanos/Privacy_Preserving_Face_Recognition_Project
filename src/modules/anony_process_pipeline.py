@@ -12,6 +12,7 @@ import pandas as pd
 from PIL import Image, UnidentifiedImageError
 from tqdm import tqdm
 
+
 # Assurez-vous que les chemins d'importation sont corrects pour votre structure de projet
 try:
     from src.modules.image_preprocessing import preprocess_image
@@ -32,6 +33,7 @@ except ImportError:
 
 
 logging.basicConfig(level=logging.INFO,
+
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -102,6 +104,7 @@ def run_preprocessing(
     image_groups = defaultdict(list)
     processed_count = 0
     # --- Cas 1: DataFrame ---
+
     if df_images is not None:
         logger.info(f"Traitement de {len(df_images)} images depuis DataFrame.")
         for index, row in tqdm(df_images.iterrows(), total=df_images.shape[0], desc="Preprocessing (DataFrame)"):
@@ -118,12 +121,16 @@ def run_preprocessing(
                 else: logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante pour index {index} (ID: {image_id}). Skip.")
             except Exception as e: logger.error(f"Erreur image index {index} (ID: {image_id}): {e}", exc_info=True)
     # --- Cas 2: Dossier ---
+
     elif folder_path is not None:
         logger.info(f"Traitement images depuis dossier: {folder_path}")
         try:
-            all_files = os.listdir(folder_path); image_files = [f for f in all_files if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pgm'))]
-            logger.info(f"Trouvé {len(image_files)} fichiers image potentiels.")
-        except Exception as e: logger.error(f"Erreur accès dossier {folder_path}: {e}"); raise
+            image_files = [f for f in os.listdir(folder_path) if
+                           f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pgm'))]
+        except Exception as e:
+            logger.error(f"Erreur accès dossier {folder_path}: {e}")
+            raise
+        logger.info(f"Trouvé {len(image_files)} fichiers image potentiels.")
         for filename in tqdm(image_files, desc="Preprocessing (Folder)"):
              try:
                 parts = filename.split("_")

@@ -1,7 +1,13 @@
 {% block header %}
 <header>
+    <a class="onglet" href="/">
+        <img src="{{ url_for('static', filename='assets/PPFR_logo.jpeg') }}" alt="Image title" class="logo" id="logo">
+    </a>
     <a class="onglet" href="/search_people">Search</a>
     <a class="onglet" href="/new_people">Add</a>
     <a class="onglet" href="/show_database">Database</a>
+    <a class="onglet" href="/analysis">Analysis</a>
 </header>
+<h1 class="center">🕵️‍♂️ Privacy-preserving face recognition App 🕵️‍♀️</h1>
+<hr>
 {% endblock %}
