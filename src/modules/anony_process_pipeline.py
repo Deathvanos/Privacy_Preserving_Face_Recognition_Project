@@ -46,7 +46,7 @@ def save_final_reconstructed_images(subject_id: str, images: List[Optional[str]]
     """
     Enregistre les images finales reconstruites (base64) pour un sujet
     directement dans RECONSTRUCTED_DIR. Le nom de fichier suit le format
-    reconstructed_<id_subject>_<num_img>.jpg.
+    reconstructed_<id_subject>_<num_img>.png.
     """
     if not images or all(img is None for img in images):
         logger.warning(f"Aucune image finale à sauvegarder pour le sujet {subject_id}.")
@@ -62,9 +62,9 @@ def save_final_reconstructed_images(subject_id: str, images: List[Optional[str]]
             img_bytes = base64.b64decode(b64img)
             img = Image.open(io.BytesIO(img_bytes))
 
-            # Nouveau nom de fichier: reconstructed_<id_subject>_<num_img>.jpg
+            # Nouveau nom de fichier: reconstructed_<id_subject>_<num_img>.png
             # Utilise l'index 'i' comme num_img pour ce sujet
-            filename = f"reconstructed_{safe_subject_id}_{i}.jpg"
+            filename = f"reconstructed_{safe_subject_id}_{i}.png"
             full_path = os.path.join(RECONSTRUCTED_DIR, filename)
 
             img.save(full_path)
@@ -126,7 +126,7 @@ def run_preprocessing(
         except Exception as e: logger.error(f"Erreur accès dossier {folder_path}: {e}"); raise
         for filename in tqdm(image_files, desc="Preprocessing (Folder)"):
              try:
-                parts = filename.split("_");
+                parts = filename.split("_")
                 subject_id = "unknown"
                 if len(parts) >= 2: subject_id = parts[1]
                 else: logger.warning(f"Nom fichier '{filename}' ne suit pas la convention 'prefix_sujetId_...'. Sujet assigné 'unknown'.")

@@ -6,7 +6,7 @@ import os
 # --- Chemins et Noms ---
 # Chemin vers le dossier contenant les images anonymisées (structure plate)
 # Utilise un chemin relatif depuis la racine du projet
-LFW_ANONY_PATH = 'data/lfw_anony_processed'
+ANONY_IMAGES_PATH = 'data/reconstructed_pipeline'
 
 # Dossier pour sauvegarder les modèles entraînés, l'encodeur de labels, etc.
 MODEL_SAVE_DIR = 'models/trained/'

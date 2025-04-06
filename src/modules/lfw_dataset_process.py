@@ -75,7 +75,7 @@ def main():
     df = load_lfw_dataframe(min_faces_per_person=20, n_samples_per_person=20)
     print(f"DataFrame chargé avec {df.shape[0]} images réparties sur {df['subject_number'].nunique()} sujets.")
 
-    pipeline_result = anony_process_pipeline.run_pipeline(df_images=df, epsilon=0.7, n_components_ratio=0.8)
+    pipeline_result = anony_process_pipeline.run_pipeline(df_images=df,k_same_k_value=10 , epsilon=0.24, n_components_ratio=0.19)
     print("Traitement terminé. Les images reconstruites ont été enregistrées dans le dossier 'reconstructed_pipeline'.")
 
 if __name__ == '__main__':
