@@ -1,131 +1,127 @@
+# -*- coding: utf-8 -*-
 import binascii
 import os
 import io
 import base64
 import logging
 from collections import defaultdict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 import numpy as np
 import pandas as pd
 from PIL import Image, UnidentifiedImageError
 from tqdm import tqdm
 
-from src.modules.image_preprocessing import preprocess_image
-import src.modules.k_same_pixel as ksp
-from src.modules.eigenface import EigenfaceGenerator
-from src.modules.noise_generator import NoiseGenerator
-from src.modules.utils_image import pillow_image_to_bytes, numpy_image_to_pillow
 
-from src.config import IMAGE_SIZE
+# Assurez-vous que les chemins d'importation sont corrects pour votre structure de projet
+try:
+    from src.modules.image_preprocessing import preprocess_image
+    import src.modules.k_same_pixel as ksp
+    from src.modules.eigenface import EigenfaceGenerator
+    from src.modules.noise_generator import NoiseGenerator
+    from src.modules.utils_image import image_pillow_to_bytes, image_numpy_to_pillow
+    from src.config import IMAGE_SIZE as DEFAULT_IMAGE_SIZE
+except ImportError:
+    # Fallback si exécuté directement ou structure différente
+    from image_preprocessing import preprocess_image
+    import k_same_pixel as ksp
+    from eigenface import EigenfaceGenerator
+    from noise_generator import NoiseGenerator
+    from utils_image import image_pillow_to_bytes, image_numpy_to_pillow
+    DEFAULT_IMAGE_SIZE = (100, 100)
+    print("Warning: Using fallback imports and default IMAGE_SIZE.")
 
-logging.basicConfig(level=logging.DEBUG,
+
+logging.basicConfig(level=logging.INFO,
+
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-SHOW_DIR = "show_test_subject"
-# Retirer le commentaire pour ajouter le dossier "SHOW_DIR"
-#os.makedirs(SHOW_DIR, exist_ok=True)
-
-# Répertoire pour enregistrer les images reconstruites
-RECONSTRUCTED_DIR = "../../data/reconstructed"
+# Répertoire pour enregistrer les images reconstruites finales (dossier unique)
+RECONSTRUCTED_DIR = "../../data/reconstructed_pipeline"
 os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
 
 
 # --- Fonctions de Sauvegarde ---
-def save_show_images(subject_id, images):
-    """Sauvegarde les images exemple (base64) dans SHOW_DIR."""
-    os.makedirs(SHOW_DIR, exist_ok=True)
-    for i, b64img in enumerate(images):
-        if b64img is None: continue
-        try:
-            img_bytes = base64.b64decode(b64img)
-            img = Image.open(io.BytesIO(img_bytes))
-            img.save(os.path.join(SHOW_DIR, f"subject_{subject_id}_image_{i}.jpg"))
-        except Exception as e:
-            logger.error(f"Erreur sauvegarde image exemple {i} sujet {subject_id}: {e}")
 
-def save_reconstructed_images(subject_id, images):
-    """Enregistre les images reconstruites PEEP (base64) pour un sujet."""
-    subject_dir = os.path.join(RECONSTRUCTED_DIR, f"peep_subject_{subject_id}") # Nom distinct
-    os.makedirs(subject_dir, exist_ok=True)
+def save_final_reconstructed_images(subject_id: str, images: List[Optional[str]], original_image_ids: List[Optional[str]]):
+    """
+    Enregistre les images finales reconstruites (base64) pour un sujet
+    directement dans RECONSTRUCTED_DIR. Le nom de fichier suit le format
+    reconstructed_<id_subject>_<num_img>.png.
+    """
+    if not images or all(img is None for img in images):
+        logger.warning(f"Aucune image finale à sauvegarder pour le sujet {subject_id}.")
+        return
+
     saved_count = 0
+    # Nettoyer l'ID sujet une seule fois
+    safe_subject_id = "".join(c if c.isalnum() or c in ('_','-') else '_' for c in str(subject_id))
+
     for i, b64img in enumerate(images):
         if b64img is None: continue
         try:
             img_bytes = base64.b64decode(b64img)
             img = Image.open(io.BytesIO(img_bytes))
-            img.save(os.path.join(subject_dir, f"reconstructed_peep_{i}.jpg"))
+
+            # Nouveau nom de fichier: reconstructed_<id_subject>_<num_img>.png
+            # Utilise l'index 'i' comme num_img pour ce sujet
+            filename = f"reconstructed_{safe_subject_id}_{i}.png"
+            full_path = os.path.join(RECONSTRUCTED_DIR, filename)
+
+            img.save(full_path)
             saved_count +=1
+        except binascii.Error as b64_err:
+             # Récupérer l'ID original juste pour le log d'erreur si possible
+             original_id_for_log = original_image_ids[i] if i < len(original_image_ids) else f"index {i}"
+             logger.error(f"Erreur décodage Base64 image {i} (orig ID: {original_id_for_log}) sujet {subject_id}: {b64_err}. Image non sauvegardée.")
         except Exception as e:
-            logger.error(f"Erreur sauvegarde image reconstruite {i} sujet {subject_id}: {e}")
+            original_id_for_log = original_image_ids[i] if i < len(original_image_ids) else f"index {i}"
+            logger.error(f"Erreur sauvegarde image finale {i} (orig ID: {original_id_for_log}) sujet {subject_id} vers {full_path}: {e}. Image non sauvegardée.")
+
     if saved_count > 0:
-        logger.info(f"{saved_count} images PEEP enregistrées pour sujet {subject_id} dans {subject_dir}")
-
-def save_ksame_images(subject_id, images):
-    """Enregistre les images anonymisées k-same (base64) pour un sujet."""
-    subject_dir = os.path.join(RECONSTRUCTED_DIR, f"ksame_subject_{subject_id}") # Nom distinct
-    os.makedirs(subject_dir, exist_ok=True)
-    saved_count = 0
-    for i, b64img in enumerate(images):
-        if b64img is None: continue
-        try:
-            img_bytes = base64.b64decode(b64img)
-            img = Image.open(io.BytesIO(img_bytes))
-            img.save(os.path.join(subject_dir, f"anonymized_ksame_{i}.jpg"))
-            saved_count += 1
-        except Exception as e:
-            logger.error(f"Erreur sauvegarde image k-same {i} sujet {subject_id}: {e}")
-    if saved_count > 0:
-        logger.info(f"{saved_count} images K-Same enregistrées pour sujet {subject_id} dans {subject_dir}")
+        logger.info(f"{saved_count} images finales reconstruites pour sujet {subject_id} enregistrées dans {RECONSTRUCTED_DIR}")
 
 
-from typing import Optional, List, Dict, Any
-from collections import defaultdict
-from werkzeug.datastructures import FileStorage
-import base64, io, os, binascii
-from PIL import Image, UnidentifiedImageError
-import pandas as pd
-from tqdm import tqdm
-
+# --- Étape 1 : Preprocessing ---
 
 def run_preprocessing(
-        folder_path: Optional[str] = None,
-        df_images: Optional[pd.DataFrame] = None,
-        b64_image_list: Optional[List[str]] = None,
-        filestorage_list: Optional[List[FileStorage]] = None
-) -> Dict[str, List[Dict[str, Any]]]:
+    folder_path: Optional[str] = None,
+    df_images: Optional[pd.DataFrame] = None,
+    b64_image_list: Optional[List[str]] = None,
+    image_size_override: Optional[Tuple[int, int]] = None
+) -> Tuple[Dict[str, List[Dict[str, Any]]], Tuple[int, int]]:
     """
-    Charge et prétraite les images depuis UNE seule source (dossier, DataFrame, base64, FileStorage).
-    Stocke l'imageId original. Ne fait PAS de k-same pixel ici.
+    Charge et prétraite les images depuis UNE source. Stocke l'imageId original.
+    Permet de spécifier la taille des images.
     """
-    num_sources = sum(p is not None for p in [folder_path, df_images, b64_image_list, filestorage_list])
-    if num_sources != 1:
-        raise ValueError("Fournir exactement une seule source d'images.")
-    logger.info("Exécution du pré-traitement standard...")
+    num_sources = sum(p is not None for p in [folder_path, df_images, b64_image_list])
+    if num_sources != 1: raise ValueError("Fournir exactement une source d'images.")
+
+    target_image_size = image_size_override if image_size_override is not None else DEFAULT_IMAGE_SIZE
+    logger.info(f"Exécution du pré-traitement standard avec IMAGE_SIZE={target_image_size}...")
+
     image_groups = defaultdict(list)
-    def is_valid_preprocessed(p):
-        return p and all(k in p for k in ['grayscale_image', 'flattened_image'])
-    def handle_image(img, subject_id, image_id):
-        preprocessed = preprocess_image(img.convert('RGB'), resize_size=IMAGE_SIZE)
-        if is_valid_preprocessed(preprocessed):
-            preprocessed['imageId'] = image_id
-            image_groups[subject_id].append(preprocessed)
-        else:
-            logger.warning(f"Prétraitement échoué pour '{image_id}'. Skip.")
-    # --- 1. DataFrame ---
+    processed_count = 0
+    # --- Cas 1: DataFrame ---
+
     if df_images is not None:
         logger.info(f"Traitement de {len(df_images)} images depuis DataFrame.")
         for index, row in tqdm(df_images.iterrows(), total=df_images.shape[0], desc="Preprocessing (DataFrame)"):
             try:
-                img, subject_id, image_id = row['userFaces'], str(row['subject_number']), row['imageId']
+                img = row['userFaces']; subject_id = str(row['subject_number']); image_id = row.get('imageId', f"df_img_{index}")
                 if not isinstance(img, Image.Image):
-                    logger.warning(f"Index {index} non-PIL Image. Skip.")
-                    continue
-                handle_image(img, subject_id, image_id)
-            except Exception as e:
-                logger.error(f"Erreur image index {index}: {e}", exc_info=True)
-    # --- 2. Dossier ---
+                     logger.warning(f"Index {index} (ID: {image_id}) n'est pas une image PIL valide. Skip.")
+                     continue
+                preprocessed = preprocess_image(img, resize_size=target_image_size, create_flattened=False)
+                if preprocessed and 'grayscale_image' in preprocessed:
+                    preprocessed['imageId'] = image_id
+                    image_groups[subject_id].append(preprocessed)
+                    processed_count += 1
+                else: logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante pour index {index} (ID: {image_id}). Skip.")
+            except Exception as e: logger.error(f"Erreur image index {index} (ID: {image_id}): {e}", exc_info=True)
+    # --- Cas 2: Dossier ---
+
     elif folder_path is not None:
         logger.info(f"Traitement images depuis dossier: {folder_path}")
         try:
@@ -136,90 +132,73 @@ def run_preprocessing(
             raise
         logger.info(f"Trouvé {len(image_files)} fichiers image potentiels.")
         for filename in tqdm(image_files, desc="Preprocessing (Folder)"):
-            try:
+             try:
                 parts = filename.split("_")
-                if len(parts) < 2:
-                    logger.warning(f"Nom fichier non standard '{filename}'. Skip.")
-                    continue
-                subject_id = parts[1]
+                subject_id = "unknown"
+                if len(parts) >= 2: subject_id = parts[1]
+                else: logger.warning(f"Nom fichier '{filename}' ne suit pas la convention 'prefix_sujetId_...'. Sujet assigné 'unknown'.")
                 image_id = os.path.splitext(filename)[0]
-                with Image.open(os.path.join(folder_path, filename)) as img:
-                    handle_image(img, subject_id, image_id)
-            except UnidentifiedImageError:
-                logger.error(f"Erreur ouverture/identification '{filename}'. Skip.")
-            except Exception as e:
-                logger.error(f"Erreur traitement fichier '{filename}': {e}", exc_info=True)
-    # --- 3. Liste base64 ---
+                img_path = os.path.join(folder_path, filename)
+                with Image.open(img_path) as img:
+                    preprocessed = preprocess_image(img.convert('RGB'), resize_size=target_image_size, create_flattened=False)
+                if preprocessed and 'grayscale_image' in preprocessed:
+                    preprocessed['imageId'] = image_id
+                    image_groups[subject_id].append(preprocessed)
+                    processed_count += 1
+                else: logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante pour '{filename}'. Skip.")
+             except UnidentifiedImageError: logger.error(f"Erreur ouverture/identification '{filename}'. Skip."); continue
+             except Exception as e: logger.error(f"Erreur traitement fichier '{filename}': {e}", exc_info=True)
+    # --- Cas 3: Liste Base64 ---
     elif b64_image_list is not None:
         logger.info(f"Traitement de {len(b64_image_list)} images depuis liste Base64.")
-        subject_id = "1"
+        subject_id = "b64_subject_1"
+        image_groups[subject_id] = []
         for i, b64_string in enumerate(tqdm(b64_image_list, desc="Preprocessing (Base64 List)")):
             try:
                 image_id = f"b64_img_{i}"
-                img_bytes = base64.b64decode(b64_string)
-                img = Image.open(io.BytesIO(img_bytes))
-                handle_image(img, subject_id, image_id)
-            except (binascii.Error, IOError, UnidentifiedImageError) as decode_err:
-                logger.error(f"Erreur décodage image base64 index {i}: {decode_err}. Skip.")
-            except Exception as e:
-                logger.error(f"Erreur traitement image base64 index {i}: {e}", exc_info=True)
-    # --- 4. Liste FileStorage ---
-    elif filestorage_list is not None:
-        logger.info(f"Traitement de {len(filestorage_list)} fichiers FileStorage.")
-        subject_id = "1"
-        for i, file_storage in enumerate(tqdm(filestorage_list, desc="Preprocessing (FileStorage List)")):
-            try:
-                image_id = f"upload_img_{i}"
-                img = Image.open(file_storage.stream)
-                handle_image(img, subject_id, image_id)
-            except UnidentifiedImageError:
-                logger.error(f"Erreur image invalide (FileStorage) index {i}. Skip.")
-            except Exception as e:
-                logger.error(f"Erreur traitement image FileStorage index {i}: {e}", exc_info=True)
-    logger.info(f"Pré-traitement terminé. {len(image_groups)} sujets traités.")
-    return dict(image_groups)
+                img_bytes = base64.b64decode(b64_string); img = Image.open(io.BytesIO(img_bytes))
+                preprocessed = preprocess_image(img.convert('RGB'), resize_size=target_image_size, create_flattened=False)
+                if preprocessed and 'grayscale_image' in preprocessed:
+                    preprocessed['imageId'] = image_id
+                    image_groups[subject_id].append(preprocessed)
+                    processed_count += 1
+                else: logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante image base64 index {i}. Skip.")
+            except (binascii.Error, IOError, UnidentifiedImageError) as decode_err: logger.error(f"Erreur décodage/ouverture image base64 index {i}: {decode_err}. Skip."); continue
+            except Exception as e: logger.error(f"Erreur traitement image base64 index {i}: {e}", exc_info=True)
+
+    logger.info(f"Pré-traitement terminé. {processed_count} images traitées pour {len(image_groups)} sujets.")
+    if processed_count == 0:
+        logger.error("Aucune image n'a pu être prétraitée. Vérifiez la source et les logs.")
+    return dict(image_groups), target_image_size
 
 
-# ---------------------------------------
-# Étape 2 : K-Same-Pixel (Nouvelle Fonction Modulaire)
-# ---------------------------------------
+# --- Étape 2 : K-Same-Pixel ---
+
 def run_k_same_anonymization(
     image_groups: Dict[str, List[Dict[str, Any]]],
     k_value: int
-) -> Dict[str, List[Optional[np.ndarray]]]:
+) -> Dict[str, List[Optional[Dict[str, Any]]]]:
     """
-    Applique l'anonymisation k-same-pixel à chaque groupe d'images d'un sujet.
-
-    Args:
-        image_groups (Dict): Dictionnaire résultat de run_preprocessing.
-                             Clés=subject_id, Valeurs=Listes de dicts d'images prétraitées.
-                             Chaque dict doit contenir 'grayscale_image' (PIL) et 'imageId'.
-        k_value (int): Paramètre K pour k-same-pixel.
-
-    Returns:
-        Dict[str, List[Optional[np.ndarray]]]: Dictionnaire par subject_id. Chaque valeur est
-                                               une liste d'arrays NumPy anonymisés (ou None si échec),
-                                               dans le même ordre que les images d'entrée du sujet.
+    Applique l'anonymisation k-same-pixel et retourne les résultats prêts pour PEEP.
     """
     logger.info(f"Application de K-Same-Pixel avec k={k_value}...")
-    k_same_results_arrays = defaultdict(list) # Pour stocker les arrays NumPy ordonnés
+    k_same_results_for_peep = defaultdict(list)
 
     if not image_groups:
         logger.warning("image_groups est vide, K-Same Pixel sauté.")
         return {}
 
     for subject_id, subject_preprocessed_list in tqdm(image_groups.items(), desc="K-Same Pixel"):
-        subject_output_arrays = [None] * len(subject_preprocessed_list) # Pré-initialiser avec None
+        subject_output_list = [None] * len(subject_preprocessed_list)
 
         if len(subject_preprocessed_list) < k_value:
-            logger.warning(f"Sujet {subject_id}: Moins d'images ({len(subject_preprocessed_list)}) que k={k_value}. K-Same Pixel sauté.")
-            k_same_results_arrays[subject_id] = subject_output_arrays # Garder la liste de None
+            logger.warning(f"Sujet {subject_id}: Moins d'images ({len(subject_preprocessed_list)}) que k={k_value}. K-Same Pixel sauté pour ce sujet.")
+            k_same_results_for_peep[subject_id] = subject_output_list
             continue
 
-        # Préparer l'entrée pour k_same_pixel_individual: [(np_array, imageId), ...]
         k_same_input_list = []
-        id_order_map = {} # Pour retrouver l'ordre original
-        valid_input_indices = [] # Indices des images valides pour k-same
+        id_order_map = {}
+        original_indices_processed = []
 
         for idx, img_dict in enumerate(subject_preprocessed_list):
             img_id = img_dict.get('imageId')
@@ -227,271 +206,300 @@ def run_k_same_anonymization(
 
             if img_id is None or grayscale_img is None:
                  logger.warning(f"Image index {idx} sujet {subject_id} manque 'imageId' ou 'grayscale_image'. Skip pour K-Same.")
-                 continue # Ne peut pas traiter cette image
+                 continue
 
             try:
-                 # Utiliser l'image grayscale PIL pour la convertir en array ici
                  grayscale_np = np.array(grayscale_img, dtype=np.uint8)
                  k_same_input_list.append((grayscale_np, img_id))
-                 id_order_map[img_id] = idx # Stocker index original
-                 valid_input_indices.append(idx) # Marquer comme valide pour traitement
+                 id_order_map[img_id] = idx
+                 original_indices_processed.append(idx)
             except Exception as conv_err:
                  logger.error(f"Erreur conversion image {img_id} (sujet {subject_id}) en NumPy: {conv_err}")
 
         if not k_same_input_list or len(k_same_input_list) < k_value:
              logger.warning(f"Pas assez d'images valides préparées ({len(k_same_input_list)}) pour K-Same sujet {subject_id} (k={k_value}).")
-             k_same_results_arrays[subject_id] = subject_output_arrays # Garder la liste de None
+             k_same_results_for_peep[subject_id] = subject_output_list
              continue
 
         try:
-            # Appeler la fonction k-same importée
-            # Retour attendu: [(anonymized_array, original_imageId), ...]
             k_same_output_tuples = ksp.k_same_pixel_individual(k_same_input_list, k=k_value)
         except Exception as k_err:
             logger.error(f"Erreur durant k_same_pixel_individual sujet {subject_id}: {k_err}", exc_info=True)
-            k_same_results_arrays[subject_id] = subject_output_arrays # Garder la liste de None
+            k_same_results_for_peep[subject_id] = subject_output_list
             continue
 
-        # Réorganiser les résultats dans l'ordre original
         id_to_anonymized_map = {img_id: anon_array for anon_array, img_id in k_same_output_tuples}
 
         for img_id, original_index in id_order_map.items():
-             anon_array = id_to_anonymized_map.get(img_id)
-             if anon_array is not None:
-                 subject_output_arrays[original_index] = anon_array
+             anon_array_uint8 = id_to_anonymized_map.get(img_id)
+             if anon_array_uint8 is not None:
+                 try:
+                    normalized_flattened_anon = anon_array_uint8.astype(np.float32).flatten() / 255.0
+                    subject_output_list[original_index] = {
+                        'flattened_anonymized_image': normalized_flattened_anon,
+                        'imageId': img_id
+                    }
+                 except Exception as post_proc_err:
+                      logger.error(f"Erreur post-traitement (norm/flat) K-Same imageId {img_id} sujet {subject_id}: {post_proc_err}")
              else:
-                  logger.warning(f"Résultat K-Same non trouvé pour imageId {img_id} (sujet {subject_id}).")
+                  logger.warning(f"Résultat K-Same non trouvé pour imageId {img_id} (sujet {subject_id}) après exécution.")
 
-        k_same_results_arrays[subject_id] = subject_output_arrays
+        k_same_results_for_peep[subject_id] = subject_output_list
 
     logger.info("Traitement K-Same-Pixel terminé.")
-    return dict(k_same_results_arrays)
+    return dict(k_same_results_for_peep)
 
 
-# ---------------------------------------------
-# Étape 3 : Calcul des eigenfaces (PEEP)
-# ---------------------------------------------
-# (Fonction run_eigenface inchangée)
+# --- Étape 3 : Calcul des eigenfaces (PEEP) ---
+
 def run_eigenface(flattened_stack: np.ndarray, n_components: int):
-    """Calcule les eigenfaces (PCA)."""
-    logger.debug(f"Calcul Eigenfaces avec n_components={n_components}")
-    eigen_gen = EigenfaceGenerator(flattened_stack, n_components=n_components)
-    eigen_gen.generate()
-    mean_face = eigen_gen.get_mean_face()
-    pca = eigen_gen.get_pca_object()
-    projection = pca.transform(flattened_stack)
-    # Note: eigenfaces ne sont pas utilisées directement dans la suite de CETTE pipeline
-    # eigenfaces = eigen_gen.get_eigenfaces()
-    return pca, mean_face, projection
+    """Calcule les eigenfaces (PCA) sur le stack fourni."""
+    logger.debug(f"Calcul Eigenfaces avec n_components={n_components} sur stack de shape {flattened_stack.shape}")
+    effective_n_components = min(n_components, flattened_stack.shape[0], flattened_stack.shape[1])
+    if effective_n_components < n_components:
+         logger.warning(f"Réduction de n_components de {n_components} à {effective_n_components} à cause des dimensions du stack ({flattened_stack.shape[0]} samples, {flattened_stack.shape[1]} features).")
+    if effective_n_components < 1:
+         logger.error(f"Impossible de calculer PCA avec n_components={effective_n_components}. Stack shape: {flattened_stack.shape}")
+         return None, None, None
+
+    eigen_gen = EigenfaceGenerator(flattened_stack, n_components=effective_n_components)
+    try:
+        eigen_gen.generate()
+        mean_face = eigen_gen.get_mean_face()
+        pca = eigen_gen.get_pca_object()
+        projection = pca.transform(flattened_stack)
+        logger.debug(f"PCA calculée. Shape projection: {projection.shape}. Mean face shape: {mean_face.shape}")
+        return pca, mean_face, projection
+    except ValueError as pca_err:
+        logger.error(f"Erreur PCA: {pca_err}. Stack shape: {flattened_stack.shape}, n_components: {effective_n_components}")
+        return None, None, None
 
 
-# ---------------------------------------------
-# Étape 4 : Ajout de bruit différentiel (PEEP)
-# ---------------------------------------------
-# (Fonction run_add_noise inchangée)
+# --- Étape 4 : Ajout de bruit différentiel (PEEP) ---
+
 def run_add_noise(projection: np.ndarray, epsilon: float, sensitivity: float = 1.0):
     """Ajoute du bruit Laplacien à la projection."""
-    logger.debug(f"Ajout bruit Laplacien (epsilon={epsilon}, sensitivity={sensitivity})")
-    # Vérifier si la projection est valide avant de continuer
     if projection is None or projection.size == 0:
-         logger.error("Projection invalide reçue pour ajout de bruit.")
-         return None # Ou lever une exception
-    noise_gen = NoiseGenerator(projection, epsilon)
-    noise_gen.normalize_images() # Normalise les projections en interne
-    noise_gen.add_laplace_noise(sensitivity)
-    noised_projection = noise_gen.get_noised_eigenfaces()
-    return noised_projection
+         logger.error("Projection invalide (None ou vide) reçue pour ajout de bruit. Skip.")
+         return None
+    if epsilon <= 0:
+        logger.info("Epsilon <= 0, aucun bruit Laplacien ne sera ajouté.")
+        return projection
+
+    logger.debug(f"Ajout bruit Laplacien (epsilon={epsilon}, sensitivity={sensitivity}) à projection shape {projection.shape}")
+    try:
+        noise_gen = NoiseGenerator(projection, epsilon)
+        noise_gen.normalize_images()
+        noise_gen.add_laplace_noise(sensitivity)
+        noised_projection = noise_gen.get_noised_eigenfaces()
+        logger.debug(f"Bruit ajouté. Shape projection bruitée: {noised_projection.shape}")
+        return noised_projection
+    except Exception as noise_err:
+        logger.error(f"Erreur lors de l'ajout de bruit Laplacien: {noise_err}", exc_info=True)
+        return None
 
 
-# ---------------------------------------
-# Étape 5 : Reconstruction (PEEP)
-# ---------------------------------------
-# (Fonction run_reconstruction inchangée)
-def run_reconstruction(pca, noised_projection: Optional[np.ndarray]) -> List[Optional[str]]:
-    """Reconstruit les images à partir de la projection bruitée."""
-    if pca is None or noised_projection is None:
-         logger.error("PCA ou projection bruitée manquante pour la reconstruction.")
-         # Retourner une liste de None de la bonne taille serait idéal, mais difficile sans connaître la taille attendue ici.
-         # Retourner une liste vide pour indiquer l'échec.
+# --- Étape 5 : Reconstruction (PEEP) ---
+
+def run_reconstruction(
+    pca: Optional[Any],
+    noised_projection: Optional[np.ndarray],
+    target_image_size: Tuple[int, int]
+) -> List[Optional[str]]:
+    """
+    Reconstruit les images à partir de la projection bruitée.
+    """
+    if pca is None:
+         logger.error("Objet PCA manquant pour la reconstruction.")
          return []
+    if noised_projection is None:
+         logger.error("Projection bruitée manquante pour la reconstruction.")
+         return []
+    if noised_projection.size == 0:
+        logger.warning("Projection vide fournie pour reconstruction. Retourne liste vide.")
+        return []
 
-    logger.debug("Reconstruction des images depuis projection bruitée...")
-    reconstructions = pca.inverse_transform(noised_projection)
+    logger.debug(f"Reconstruction des images depuis projection bruitée shape {noised_projection.shape}...")
     reconstructed_images_b64 = []
-    for recon_flat in reconstructions:
-        try:
-            # Assurer que la taille correspond à IMAGE_SIZE pour la reconversion
-            expected_shape = (IMAGE_SIZE[1], IMAGE_SIZE[0]) # H, W
-            pil_img = numpy_image_to_pillow(recon_flat, resized_size=expected_shape)
-            b64_img = pillow_image_to_bytes(pil_img)
-            reconstructed_images_b64.append(b64_img)
-        except Exception as e:
-            logger.error(f"Erreur reconversion image reconstruite: {e}")
-            reconstructed_images_b64.append(None) # Ajouter None si erreur
+    try:
+        reconstructions_flat = pca.inverse_transform(noised_projection)
+        logger.debug(f"Inverse transform effectué. Shape reconstructions aplaties: {reconstructions_flat.shape}")
+
+        expected_shape_hw = (target_image_size[1], target_image_size[0])
+
+        for recon_flat in reconstructions_flat:
+            try:
+                if recon_flat.size != expected_shape_hw[0] * expected_shape_hw[1]:
+                    logger.error(f"Taille de l'image reconstruite aplatie ({recon_flat.size}) "
+                                 f"ne correspond pas à la taille attendue {expected_shape_hw[0] * expected_shape_hw[1]}. Skip cette image.")
+                    reconstructed_images_b64.append(None)
+                    continue
+
+                pil_img = image_numpy_to_pillow(recon_flat, resized_size=expected_shape_hw)
+                b64_img = image_pillow_to_bytes(pil_img)
+                reconstructed_images_b64.append(b64_img)
+            except ValueError as reshape_err:
+                 logger.error(f"Erreur lors du reshape/conversion PIL pour une image reconstruite: {reshape_err}. Recon flat size: {recon_flat.size}, target shape HW: {expected_shape_hw}", exc_info=True)
+                 reconstructed_images_b64.append(None)
+            except Exception as e:
+                logger.error(f"Erreur conversion/encodage Base64 d'une image reconstruite: {e}", exc_info=True)
+                reconstructed_images_b64.append(None)
+
+    except Exception as inv_tf_err:
+        logger.error(f"Erreur durant pca.inverse_transform: {inv_tf_err}", exc_info=True)
+        num_images_expected = noised_projection.shape[0]
+        return [None] * num_images_expected
+
+    logger.debug(f"{len(reconstructed_images_b64)} images préparées pour le retour (certaines peuvent être None).")
     return reconstructed_images_b64
 
 
-# -----------------------------------------------------
-# Fonction globale pour exécuter la pipeline complète (Modifiée)
-# -----------------------------------------------------
+# --- Fonction globale pour exécuter la pipeline SÉQUENTIELLE ---
+
 def run_pipeline(
     folder_path: Optional[str] = None,
     df_images: Optional[pd.DataFrame] = None,
     b64_image_list: Optional[List[str]] = None,
-    epsilon: float = 9.0,
-    n_components_ratio: float = 0.9,
-    k_same_k_value: Optional[int] = None # Paramètre K-Same ajouté ici
-) -> dict:
+    image_size_override: Optional[Tuple[int, int]] = None,
+    k_same_k_value: int = 3,
+    n_components_ratio: float = 0.8,
+    epsilon: float = 1.0
+) -> Dict[str, Dict[str, Any]]:
     """
-    Exécute la pipeline complète : Preprocessing -> K-Same (optionnel) -> PEEP.
-
-    Args:
-        folder_path, df_images, b64_image_list: Source (une seule).
-        epsilon (float): Epsilon pour bruit différentiel PEEP.
-        n_components_ratio (float): Ratio pour PCA PEEP.
-        k_same_k_value (int, optional): K pour K-Same-Pixel. Si None, étape sautée.
-
-    Returns:
-        dict: Dictionnaire par subject_id avec résultats (images base64), incluant
-              'k_same_anonymized' (si K>0) et 'reconstructed' (PEEP).
+    Exécute la pipeline séquentielle: Preprocessing -> K-Same -> PEEP -> Reconstruction/Sauvegarde.
     """
-    pipeline_result = {}
-    logger.info(f"Démarrage pipeline complète: eps={epsilon}, ratio={n_components_ratio}, k={k_same_k_value}")
+    pipeline_results = {}
+    logger.info(f"Démarrage pipeline SÉQUENTIELLE: k={k_same_k_value}, ratio={n_components_ratio}, eps={epsilon}")
+
+    if k_same_k_value < 2:
+         logger.error(f"k_same_k_value ({k_same_k_value}) doit être >= 2. Arrêt.")
+         return {}
 
     # --- Étape 1 : Preprocessing ---
-    image_groups = run_preprocessing(
-        folder_path=folder_path, df_images=df_images, b64_image_list=b64_image_list
-    )
-    if not image_groups:
-        logger.error("Preprocessing n'a retourné aucune image. Arrêt.")
+    try:
+        image_groups, used_image_size = run_preprocessing(
+            folder_path=folder_path, df_images=df_images, b64_image_list=b64_image_list,
+            image_size_override=image_size_override
+        )
+    except ValueError as e:
+        logger.error(f"Erreur de configuration preprocessing: {e}")
         return {}
+    except Exception as e:
+         logger.error(f"Erreur inattendue durant preprocessing: {e}", exc_info=True)
+         return {}
 
-    # --- Étape 2 : K-Same-Pixel (Optionnelle) ---
-    k_same_results_b64 = defaultdict(list) # Pour stocker {subject_id: [b64_img1, b64_img2,...]}
-    if k_same_k_value is not None and k_same_k_value > 0:
-        # Appelle la fonction modulaire k-same
-        k_same_arrays_dict = run_k_same_anonymization(image_groups, k_same_k_value)
+    if not image_groups:
+        logger.error("Preprocessing n'a retourné aucune image valide. Arrêt.")
+        return {}
+    logger.info(f"Preprocessing terminé. Taille d'image utilisée: {used_image_size}")
 
-        # Convertir les résultats en Base64
-        logger.info("Conversion des résultats K-Same en Base64...")
-        for subject_id, ordered_k_same_arrays in k_same_arrays_dict.items():
-             b64_list = []
-             for arr in ordered_k_same_arrays:
-                 if arr is not None:
-                     try:
-                         pil_img = numpy_image_to_pillow(arr, resized_size=IMAGE_SIZE)
-                         b64_img = pillow_image_to_bytes(pil_img)
-                         b64_list.append(b64_img)
-                     except Exception as conv_err:
-                          logger.error(f"Erreur conversion K-Same array B64 sujet {subject_id}: {conv_err}")
-                          b64_list.append(None)
-                 else:
-                     b64_list.append(None)
-             k_same_results_b64[subject_id] = b64_list
+    # --- Étape 2 : K-Same-Pixel ---
+    k_same_results = run_k_same_anonymization(image_groups, k_same_k_value)
 
-        # Sauvegarde des images K-Same (Optionnelle)
-        for subject_id, b64_images in k_same_results_b64.items():
-            if any(img is not None for img in b64_images): # Sauvegarder seulement si qqc a été généré
-                 save_ksame_images(subject_id, b64_images)
-    else:
-        logger.info("Étape K-Same-Pixel sautée (k non fourni ou invalide).")
+    if not k_same_results:
+         logger.warning("K-Same n'a retourné aucun résultat. PEEP ne peut pas continuer.")
 
+    # --- Étapes 3-5 : PEEP (Eigenface + Bruit + Reconstruction) + Sauvegarde ---
+    logger.info("Démarrage des étapes PEEP (Eigenface, Bruit, Reconstruction) sur les résultats K-Same...")
 
-    # --- Étapes 3-5 : PEEP (Eigenface + Bruit + Reconstruction) ---
-    logger.info("Démarrage des étapes PEEP...")
-    peep_results = {} # Stocke temporairement les sorties PEEP pour chaque sujet
-
-    for subject_id in tqdm(image_groups, desc="Traitement PEEP par sujet"):
-        subject_preprocessed_list = image_groups[subject_id]
-        peep_subject_output = { # Initialiser les sorties pour ce sujet
-            "mean_face_b64": None,
-            "projection": [],
-            "noised_projection": [],
-            "reconstructed_b64": [None] * len(subject_preprocessed_list) # Pré-remplir avec None
+    for subject_id in tqdm(image_groups.keys(), desc="Traitement PEEP par sujet"):
+        pipeline_results[subject_id] = {
+            "imageIds": [img_dict.get('imageId', f'unknown_{i}') for i, img_dict in enumerate(image_groups[subject_id])],
+            "final_reconstructed_b64": [None] * len(image_groups[subject_id]),
+            "errors": []
         }
+        subject_errors = []
 
-        if len(subject_preprocessed_list) < 2:
-            logger.warning(f"Sujet {subject_id}: Moins de 2 images ({len(subject_preprocessed_list)}). PEEP sauté.");
-            peep_results[subject_id] = peep_subject_output; continue
+        subject_ksame_output_list = k_same_results.get(subject_id)
 
-        # Préparer flattened_stack et garder trace des indices/IDs valides
+        if not subject_ksame_output_list or all(item is None for item in subject_ksame_output_list):
+            msg = f"Aucun résultat K-Same valide trouvé pour sujet {subject_id}. PEEP sauté."
+            logger.warning(msg)
+            pipeline_results[subject_id]['errors'].append(msg)
+            continue
+
+        # Préparer le stack aplati à partir des résultats K-Same valides
         flattened_stack_list = []
-        valid_indices_map = {} # Map original_index -> index_in_stack
-        original_image_ids = [img_dict.get('imageId') for img_dict in subject_preprocessed_list]
+        valid_indices_map = {}
+        original_indices_processed_ksame = []
 
-        for idx, img_dict in enumerate(subject_preprocessed_list):
-             flattened = img_dict.get('flattened_image')
-             if flattened is not None:
-                 flattened_stack_list.append(np.array(flattened))
-                 valid_indices_map[idx] = len(flattened_stack_list) - 1 # Stoker le nouvel index
-             else: logger.warning(f"Sujet {subject_id}, Img Idx {idx}: 'flattened_image' manquante.")
+        for idx, ksame_item in enumerate(subject_ksame_output_list):
+             if ksame_item and 'flattened_anonymized_image' in ksame_item:
+                 flattened_anon = ksame_item['flattened_anonymized_image']
+                 if flattened_anon is not None and flattened_anon.ndim == 1:
+                    flattened_stack_list.append(flattened_anon)
+                    valid_indices_map[idx] = len(flattened_stack_list) - 1
+                    original_indices_processed_ksame.append(idx)
+                 else:
+                    msg = f"Sujet {subject_id}, Idx Orig {idx}: Donnée K-Same invalide (None, pas 1D, ou manquante)."
+                    logger.warning(msg)
+                    subject_errors.append(msg + f" Image ID: {ksame_item.get('imageId', 'N/A')}")
 
         if len(flattened_stack_list) < 2:
-            logger.warning(f"Sujet {subject_id}: Moins de 2 images valides pour PEEP. PEEP sauté.");
-            peep_results[subject_id] = peep_subject_output; continue
+            msg = f"Sujet {subject_id}: Moins de 2 images valides après K-Same ({len(flattened_stack_list)}). PEEP sauté."
+            logger.warning(msg)
+            pipeline_results[subject_id]['errors'].append(msg)
+            pipeline_results[subject_id]['errors'].extend(subject_errors)
+            continue
 
-        flattened_stack_np = np.array(flattened_stack_list)
+        flattened_stack_np = np.array(flattened_stack_list, dtype=np.float32)
         n_samples, n_features = flattened_stack_np.shape
-        n_components = min(max(1, int(n_components_ratio * n_samples)), n_features, n_samples) # Assurer >= 1
 
-        logger.debug(f"Sujet {subject_id}: PCA avec n_components={n_components}")
-        try:
-            pca, mean_face, projection = run_eigenface(flattened_stack_np, n_components)
-            noised_projection = run_add_noise(projection, epsilon) if epsilon > 0 else projection # Appliquer bruit si epsilon > 0
-            reconstructed_b64_list_valid = run_reconstruction(pca, noised_projection) # Liste pour les images valides seulement
+        n_components = min(max(1, int(n_components_ratio * n_samples)), n_features)
+        logger.debug(f"Sujet {subject_id}: PCA avec n_components={n_components} sur stack K-Same shape {flattened_stack_np.shape}")
 
-            # Stocker résultats PEEP (pour les images traitées)
-            peep_subject_output["mean_face_b64"] = pillow_image_to_bytes(numpy_image_to_pillow(mean_face, resized_size=IMAGE_SIZE))
-            peep_subject_output["projection"] = projection.tolist() if projection is not None else []
-            peep_subject_output["noised_projection"] = noised_projection.tolist() if noised_projection is not None else []
+        # Exécuter les étapes PEEP
+        pca, _, projection = run_eigenface(flattened_stack_np, n_components)
 
-            # Ré-insérer les images reconstruites aux bons indices dans la liste finale
-            final_reconstructed_list = [None] * len(subject_preprocessed_list)
-            if len(reconstructed_b64_list_valid) == len(valid_indices_map):
-                 for original_idx, stack_idx in valid_indices_map.items():
-                      final_reconstructed_list[original_idx] = reconstructed_b64_list_valid[stack_idx]
-                 peep_subject_output["reconstructed_b64"] = final_reconstructed_list
-            else:
-                 logger.error(f"Sujet {subject_id}: Discordance de taille entre images reconstruites PEEP et images valides. Reconstruction échouée.")
-                 # Garde la liste de None
+        if pca is None or projection is None:
+             msg = f"Sujet {subject_id}: Échec du calcul PCA/projection. PEEP arrêté pour ce sujet."
+             logger.error(msg)
+             pipeline_results[subject_id]['errors'].append(msg)
+             pipeline_results[subject_id]['errors'].extend(subject_errors)
+             continue
 
-        except Exception as peep_err:
-            logger.error(f"Erreur durant PEEP pour sujet {subject_id}: {peep_err}", exc_info=True)
-            # Garde les valeurs par défaut (None/[]) dans peep_subject_output
+        noised_projection = run_add_noise(projection, epsilon)
+        if noised_projection is None:
+             msg = f"Sujet {subject_id}: Échec de l'ajout de bruit. PEEP arrêté pour ce sujet."
+             logger.error(msg)
+             pipeline_results[subject_id]['errors'].append(msg)
+             pipeline_results[subject_id]['errors'].extend(subject_errors)
+             continue
 
-        peep_results[subject_id] = peep_subject_output
-        # Sauvegarde PEEP (reconstruit)
-        if any(img is not None for img in peep_subject_output["reconstructed_b64"]):
-             save_reconstructed_images(subject_id, peep_subject_output["reconstructed_b64"])
+        reconstructed_b64_list_valid = run_reconstruction(pca, noised_projection, used_image_size)
 
+        # Ré-insérer les images reconstruites aux bons indices
+        if len(reconstructed_b64_list_valid) == len(valid_indices_map):
+             for original_idx, stack_idx in valid_indices_map.items():
+                  if stack_idx < len(reconstructed_b64_list_valid):
+                     pipeline_results[subject_id]["final_reconstructed_b64"][original_idx] = reconstructed_b64_list_valid[stack_idx]
+                  else:
+                     msg = f"Sujet {subject_id}: Index de stack ({stack_idx}) hors limites pour les résultats reconstruits ({len(reconstructed_b64_list_valid)}). Erreur logique interne."
+                     logger.error(msg)
+                     subject_errors.append(msg)
+        else:
+             msg = (f"Sujet {subject_id}: Discordance de taille entre images reconstruites PEEP "
+                    f"({len(reconstructed_b64_list_valid)}) et images valides K-Same traitées ({len(valid_indices_map)}). "
+                    f"Reconstruction partielle ou nulle pour ce sujet.")
+             logger.error(msg)
+             subject_errors.append(msg)
+             for original_idx, stack_idx in valid_indices_map.items():
+                  if stack_idx < len(reconstructed_b64_list_valid):
+                      pipeline_results[subject_id]["final_reconstructed_b64"][original_idx] = reconstructed_b64_list_valid[stack_idx]
 
-    # --- Assemblage Final du Résultat ---
-    logger.info("Assemblage du résultat final de la pipeline...")
-    for subject_id, subject_preprocessed_list in image_groups.items():
-        # Récupérer les résultats PEEP pour ce sujet
-        peep_output = peep_results.get(subject_id, {})
-        # Récupérer les résultats K-Same pour ce sujet (liste de b64 ou liste vide)
-        ksame_output_b64 = k_same_results_b64.get(subject_id, [None] * len(subject_preprocessed_list))
+        # --- Sauvegarde Finale ---
+        save_final_reconstructed_images(
+            subject_id,
+            pipeline_results[subject_id]["final_reconstructed_b64"],
+            pipeline_results[subject_id]["imageIds"]
+        )
 
-        # Créer le dictionnaire final pour le sujet
-        pipeline_result[subject_id] = {
-            # Données du preprocessing (converties en b64/list si nécessaire)
-            "imageIds": [img.get('imageId') for img in subject_preprocessed_list],
-            "resized": [pillow_image_to_bytes(img['resized_image']) if img.get('resized_image') else None for img in subject_preprocessed_list],
-            "grayscale": [pillow_image_to_bytes(img['grayscale_image']) if img.get('grayscale_image') else None for img in subject_preprocessed_list],
-            "normalized": [img['normalized_image'].tolist() if img.get('normalized_image') is not None else None for img in subject_preprocessed_list],
-            "flattened": [img['flattened_image'].tolist() if img.get('flattened_image') is not None else None for img in subject_preprocessed_list],
+        pipeline_results[subject_id]['errors'].extend(subject_errors)
 
-             # Données K-Same (déjà en b64)
-             "k_same_anonymized": ksame_output_b64,
+    logger.info("Pipeline SÉQUENTIELLE terminée.")
+    # Nettoyer les résultats
+    final_results = {sid: data for sid, data in pipeline_results.items() if any(img is not None for img in data["final_reconstructed_b64"])}
+    if len(final_results) < len(pipeline_results):
+        logger.warning(f"{len(pipeline_results) - len(final_results)} sujets n'ont produit aucune image finale valide et ont été exclus du retour.")
 
-            # Données PEEP
-            "mean_face": peep_output.get("mean_face_b64"),
-            "projection": peep_output.get("projection", []),
-            "noised_projection": peep_output.get("noised_projection", []),
-            "reconstructed": peep_output.get("reconstructed_b64", [])
-        }
-        logger.debug(f"Résultat assemblé pour sujet {subject_id}.")
-
-    logger.info("Pipeline terminée.")
-    return pipeline_result
+    return final_results

@@ -35,7 +35,7 @@ def load_label_encoder(filepath: str) -> Optional[LabelEncoder]:
 
 # --- Fonction Principale de Chargement ---
 
-def load_lfw_anonymized_flat(
+def load_anonymized_images_flat(
     data_dir: str,
     img_width: int,
     img_height: int,

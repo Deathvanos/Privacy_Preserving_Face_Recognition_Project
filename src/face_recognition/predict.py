@@ -129,6 +129,8 @@ def predict_image(image_path: str):
     duration = end_time - start_time
     print(f"\n--- Script de Prédiction Terminé en {duration:.2f} secondes ---")
 
+    return predicted_label
+
 
 # --- Point d'Entrée pour Ligne de Commande ---
 if __name__ == "__main__":

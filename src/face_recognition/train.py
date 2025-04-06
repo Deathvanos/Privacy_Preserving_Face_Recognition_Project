@@ -30,7 +30,7 @@ def train_model():
 
     # --- 1. Chargement de la Configuration ---
     print("Configuration chargée depuis config.py:")
-    print(f"  - Dossier Données: {config.LFW_ANONY_PATH}")
+    print(f"  - Dossier Données: {config.ANONY_IMAGES_PATH}")
     print(f"  - Dossier Sauvegarde Modèles: {config.MODEL_SAVE_DIR}")
     print(f"  - Architecture Modèle: {config.MODEL_ARCHITECTURE}")
     print(f"  - Nom Modèle: {config.MODEL_NAME}")
@@ -46,8 +46,8 @@ def train_model():
 
     # --- 2. Chargement et Préparation des Données ---
     print("\n--- Chargement des données ---")
-    X, y, label_encoder = data_loader.load_lfw_anonymized_flat(
-        data_dir=config.LFW_ANONY_PATH,
+    X, y, label_encoder = data_loader.load_anonymized_images_flat(
+        data_dir=config.ANONY_IMAGES_PATH,
         img_width=config.IMG_WIDTH,
         img_height=config.IMG_HEIGHT,
         color_mode=config.COLOR_MODE
@@ -261,8 +261,8 @@ def train_model():
             plt.xlabel('Epochs')
             plt.ylabel('Loss')
 
-            plot_save_path = os.path.join(config.MODEL_SAVE_DIR, f"{config.MODEL_NAME}_training_curves.png")
-            plt.savefig(plot_save_path)
+            plot_save_path = os.path.join(config.MODEL_SAVE_DIR, f"{config.MODEL_NAME}_training_curves.pdf")
+            plt.savefig(plot_save_path, format='pdf', bbox_inches='tight')
             print(f"Courbes sauvegardées dans : {plot_save_path}")
 
         except Exception as plot_e:
