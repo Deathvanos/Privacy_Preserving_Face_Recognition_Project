@@ -76,7 +76,7 @@ def main():
     print(f"DataFrame chargé avec {df.shape[0]} images réparties sur {df['subject_number'].nunique()} sujets.")
 
     pipeline_result = anony_process_pipeline.run_pipeline(df_images=df, epsilon=0.7, n_components_ratio=0.8)
-    print("Traitement terminé. Les images reconstruites ont été enregistrées dans le dossier 'lfw_anony_processed'.")
+    print("Traitement terminé. Les images reconstruites ont été enregistrées dans le dossier 'reconstructed_pipeline'.")
 
 if __name__ == '__main__':
     main()
