@@ -36,7 +36,7 @@ def evaluate_model():
 
     print(f"  - Modèle à charger: {model_filepath}")
     print(f"  - Encodeur à charger: {encoder_filepath}")
-    print(f"  - Données d'évaluation depuis: {config.LFW_ANONY_PATH}")
+    print(f"  - Données d'évaluation depuis: {config.ANONY_IMAGES_PATH}")
 
     # --- 2. Charger Modèle et Encodeur ---
     print("\n--- Chargement du modèle et de l'encodeur ---")
@@ -60,8 +60,8 @@ def evaluate_model():
 
     # --- 3. Charger et Préparer les Données de Test ---
     print("\n--- Chargement et préparation des données de test ---")
-    X_full, y_full, _ = data_loader.load_lfw_anonymized_flat(
-        data_dir=config.LFW_ANONY_PATH,
+    X_full, y_full, _ = data_loader.load_anonymized_images_flat(
+        data_dir=config.ANONY_IMAGES_PATH,
         img_width=config.IMG_WIDTH,
         img_height=config.IMG_HEIGHT,
         color_mode=config.COLOR_MODE
@@ -148,7 +148,7 @@ def evaluate_model():
              plt.yticks(rotation=0)
 
         plt.tight_layout()
-        plot_save_path = os.path.join(config.MODEL_SAVE_DIR, f"{config.MODEL_NAME}_confusion_matrix.png")
+        plot_save_path = os.path.join(config.MODEL_SAVE_DIR, f"{config.MODEL_NAME}_confusion_matrix.pdf")
         plt.savefig(plot_save_path)
         print(f"\nMatrice de confusion sauvegardée dans : {plot_save_path}")
 
