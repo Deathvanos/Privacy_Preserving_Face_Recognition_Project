@@ -53,7 +53,6 @@ class GUIController:
     @classmethod
     def initialize_new_user(cls, files: list[FileStorage], image_size:(int, int)=None,) -> (dict, int):
         """Step 1 : Preprocessing"""
-        # TODO: add image_size to the process
         # Check input images format
         if not files: return {'error': 'No files uploaded'}, 400
         if not all(isinstance(file, FileStorage) for file in files): return {'error': 'Uploaded files are invalid'}, 400
