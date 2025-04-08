@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image, UnidentifiedImageError
 from tqdm import tqdm
-
+from werkzeug.datastructures import FileStorage
 
 # Assurez-vous que les chemins d'importation sont corrects pour votre structure de projet
 try:
@@ -19,15 +19,15 @@ try:
     import src.modules.k_same_pixel as ksp
     from src.modules.eigenface import EigenfaceGenerator
     from src.modules.noise_generator import NoiseGenerator
-    from src.modules.utils_image import image_pillow_to_bytes, image_numpy_to_pillow
+    from src.modules.utils_image import numpy_image_to_pillow, pillow_image_to_bytes
     from src.config import IMAGE_SIZE as DEFAULT_IMAGE_SIZE
 except ImportError:
     # Fallback si exécuté directement ou structure différente
-    from image_preprocessing import preprocess_image
-    import k_same_pixel as ksp
-    from eigenface import EigenfaceGenerator
-    from noise_generator import NoiseGenerator
-    from utils_image import image_pillow_to_bytes, image_numpy_to_pillow
+    from src.modules.image_preprocessing import preprocess_image
+    import src.modules.k_same_pixel as ksp
+    from src.modules.eigenface import EigenfaceGenerator
+    from src.modules.noise_generator import NoiseGenerator
+    from src.modules.utils_image import pillow_image_to_bytes, numpy_image_to_pillow
     DEFAULT_IMAGE_SIZE = (100, 100)
     print("Warning: Using fallback imports and default IMAGE_SIZE.")
 
@@ -92,13 +92,14 @@ def run_preprocessing(
     folder_path: Optional[str] = None,
     df_images: Optional[pd.DataFrame] = None,
     b64_image_list: Optional[List[str]] = None,
+    filestorage_list: Optional[List[FileStorage]] = None,
     image_size_override: Optional[Tuple[int, int]] = None
 ) -> Tuple[Dict[str, List[Dict[str, Any]]], Tuple[int, int]]:
     """
     Charge et prétraite les images depuis UNE source. Stocke l'imageId original.
     Permet de spécifier la taille des images.
     """
-    num_sources = sum(p is not None for p in [folder_path, df_images, b64_image_list])
+    num_sources = sum(p is not None for p in [folder_path, df_images, b64_image_list, filestorage_list])
     if num_sources != 1: raise ValueError("Fournir exactement une source d'images.")
 
     target_image_size = image_size_override if image_size_override is not None else DEFAULT_IMAGE_SIZE
@@ -107,7 +108,6 @@ def run_preprocessing(
     image_groups = defaultdict(list)
     processed_count = 0
     # --- Cas 1: DataFrame ---
-
     if df_images is not None:
         logger.info(f"Traitement de {len(df_images)} images depuis DataFrame.")
         for index, row in tqdm(df_images.iterrows(), total=df_images.shape[0], desc="Preprocessing (DataFrame)"):
@@ -124,7 +124,6 @@ def run_preprocessing(
                 else: logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante pour index {index} (ID: {image_id}). Skip.")
             except Exception as e: logger.error(f"Erreur image index {index} (ID: {image_id}): {e}", exc_info=True)
     # --- Cas 2: Dossier ---
-
     elif folder_path is not None:
         logger.info(f"Traitement images depuis dossier: {folder_path}")
         try:
@@ -168,7 +167,27 @@ def run_preprocessing(
                 else: logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante image base64 index {i}. Skip.")
             except (binascii.Error, IOError, UnidentifiedImageError) as decode_err: logger.error(f"Erreur décodage/ouverture image base64 index {i}: {decode_err}. Skip."); continue
             except Exception as e: logger.error(f"Erreur traitement image base64 index {i}: {e}", exc_info=True)
-
+    # --- 4. Liste FileStorage ---
+    elif filestorage_list is not None:
+        logger.info(f"Traitement de {len(filestorage_list)} fichiers FileStorage.")
+        subject_id = "upload_subject_1"
+        image_groups[subject_id] = []
+        for i, file_storage in enumerate(tqdm(filestorage_list, desc="Preprocessing (FileStorage List)")):
+            try:
+                image_id = f"upload_img_{i}"
+                img = Image.open(file_storage.stream)
+                preprocessed = preprocess_image(img.convert('RGB'), resize_size=target_image_size, create_flattened=False)
+                if preprocessed and 'grayscale_image' in preprocessed:
+                    preprocessed['imageId'] = image_id
+                    image_groups[subject_id].append(preprocessed)
+                    processed_count += 1
+                else:
+                    logger.warning(f"Prétraitement échoué ou 'grayscale_image' manquante pour fichier FileStorage index {i}. Skip.")
+            except UnidentifiedImageError:
+                logger.error(f"Erreur ouverture/identification fichier FileStorage index {i}. Skip.")
+                continue
+            except Exception as e:
+                logger.error(f"Erreur traitement fichier FileStorage index {i}: {e}", exc_info=True)
     logger.info(f"Pré-traitement terminé. {processed_count} images traitées pour {len(image_groups)} sujets.")
     if processed_count == 0:
         logger.error("Aucune image n'a pu être prétraitée. Vérifiez la source et les logs.")
@@ -338,8 +357,8 @@ def run_reconstruction(
                     reconstructed_images_b64.append(None)
                     continue
 
-                pil_img = image_numpy_to_pillow(recon_flat, resized_size=expected_shape_hw)
-                b64_img = image_pillow_to_bytes(pil_img)
+                pil_img = numpy_image_to_pillow(recon_flat, resized_size=expected_shape_hw)
+                b64_img = pillow_image_to_bytes(pil_img)
                 reconstructed_images_b64.append(b64_img)
             except ValueError as reshape_err:
                  logger.error(f"Erreur lors du reshape/conversion PIL pour une image reconstruite: {reshape_err}. Recon flat size: {recon_flat.size}, target shape HW: {expected_shape_hw}", exc_info=True)

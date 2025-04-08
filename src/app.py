@@ -87,11 +87,12 @@ def new_people_processing_page():
         case 1:
             inputs = request.files.getlist('fileInput')
             inputs = inputs if inputs else None
-            response, code = GUIController2.initialize_new_user(inputs)
+            image_size = (100, 100)  # TODO: To integrate in HTML
+            response, code = GUIController2.initialize_new_user(inputs, image_size)
         case 2:
             inputs = request.form.getlist('k_same_value')
             inputs = inputs if inputs else None
-            inputs = 4 # TODO: To remove
+            inputs = 4 # TODO: To integrate in HTML
             response, code = GUIController2.apply_k_same_pixel(inputs)
         case 3:
             inputs = request.form.get('pca_components')

@@ -52,7 +52,7 @@ class GUIController2:
         return 0 <= step <= self.next_step
 
     @classmethod
-    def initialize_new_user(cls, files: list[FileStorage], image_size=(100, 100)) -> (dict, int):
+    def initialize_new_user(cls, files: list[FileStorage], image_size:(int, int)=None,) -> (dict, int):
         """Step 1 : Preprocessing"""
         # TODO: add image_size to the process
         # Check input images format
@@ -61,7 +61,7 @@ class GUIController2:
         # Init GUI Controller
         ctrl = GUIController2(files)
         ##### STEP 1 : Preprocessing #####
-        try: ctrl.step1 = pipeline.run_preprocessing(filestorage_list=files)
+        try: ctrl.step1, ctrl.image_size = pipeline.run_preprocessing(filestorage_list=files, image_size_override=image_size)
         except Exception as e:  return {'error': str(e)}, 400
         # Init Pickle file to save GUI Controller
         ctrl.next_step = 2
@@ -86,6 +86,7 @@ class GUIController2:
         ctrl.save_into_pickle()
         # Return validation of the process
         images = ctrl.step2[list(ctrl.step2.keys())[0]]
+        images = [img['flattened_anonymized_image'] for img in ctrl.step2["upload_subject_1"]]
         images = pillow_image_to_bytes(numpy_image_to_pillow(images, ctrl.image_size, True))
         return {'images': images}, 200
 
@@ -97,14 +98,13 @@ class GUIController2:
         if not ctrl: return {'error': 'Please run the fist step before this one'}, 400
         if not ctrl.can_run_step(3):  return {'error': 'Step not ready to run'}, 400
         # Check input images format
-        # TODO: change with anony_test_analysis.py to generate real optimal number + graph et mettre cette partie dans une fonction à part dans le back
         user = list(ctrl.step2.keys())[0]
-        images = ctrl.step2[user]
-        images = [img.flatten() for img in images]
-        images = np.array(images)
-        n_components_ratio = 0.9
+        images = [img['flattened_anonymized_image'] for img in ctrl.step2[user]]
+        images = np.array(images, dtype=np.float32)
         n_samples, n_features = images.shape
-        n_components_optimal = min(max(1, int(n_components_ratio * n_samples)), n_features, n_samples)
+        # TODO: change with anony_test_analysis.py to generate real optimal number + graph et mettre cette partie dans une fonction à part dans le back
+        n_components_ratio = 0.8
+        n_components_optimal = min(max(1, int(n_components_ratio * n_samples)), n_features)
         print(f"n_components_optimal: {n_components_optimal}")
         if n_components is None:
             n_components = n_components_optimal
@@ -136,7 +136,7 @@ class GUIController2:
             pca, mean_face, projection = ctrl.step3
             ctrl.step4 = pipeline.run_add_noise(projection, epsilon)
             ##### Step 5 : Reconstruction #####
-            ctrl.step5 = pipeline.run_reconstruction(pca, ctrl.step4)
+            ctrl.step5 = pipeline.run_reconstruction(pca, ctrl.step4, ctrl.image_size)
         except Exception as e:
             return {'error': str(e)}, 400
         # Update Pickle GUI Controller
