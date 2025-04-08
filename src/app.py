@@ -23,7 +23,6 @@ from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
 import config
 from modules.gui_controller import GUIController
-from modules.gui_controller2 import GUIController2
 from os import listdir
 
 app = Flask(__name__)
@@ -89,19 +88,19 @@ def new_people_processing_page():
             inputs = inputs if inputs else None
             image_size = request.form.get('img_size')
             image_size = (image_size, image_size) if image_size else None
-            response, code = GUIController2.initialize_new_user(inputs, image_size)
+            response, code = GUIController.initialize_new_user(inputs, image_size)
         case 2:
             value = request.form.get('k_same_value')
             value = value if value else None
-            response, code = GUIController2.apply_k_same_pixel(value)
+            response, code = GUIController.apply_k_same_pixel(value)
         case 3:
             inputs = request.form.get('pca_components')
-            response, code = GUIController2.generate_pca_components(inputs)
+            response, code = GUIController.generate_pca_components(inputs)
         case 4:
             inputs = request.form.get('epsilon')
-            response, code = GUIController2.apply_differential_privacy(inputs)
+            response, code = GUIController.apply_differential_privacy(inputs)
         case 5:
-            response, code = GUIController2.save_user_in_db()
+            response, code = GUIController.save_user_in_db()
         case 6:
             response, code = {'error': "ML not implemented"}, 400
 
