@@ -61,11 +61,13 @@ function initializeFileUploadListener() {
 // ------------------------// PROCESS STEP //----------------------------//
 // ----------------------------------------------------------------------//
 
-function step_0_upload(go_next=false) {
+function step_upload(go_next=false) {
     // Get data
     const fileInput = document.getElementById('fileInput');
+    const img_size = document.getElementById('img_size');
     const files = fileInput.files;
     const formData = new FormData();
+    formData.append('img_size', img_size.value);
     for (let i = 0; i < files.length; i++) {
         formData.append('fileInput', files[i]);
     }
@@ -74,59 +76,47 @@ function step_0_upload(go_next=false) {
         display_image(response.images, step);
         if (go_next) {
             setCurrentStep(2)
-            step_1_same_pixel()
+            step_same_pixel()
         }
     }
     // Call the server
     call_process('1', success_method, formData);
 }
 
-function step_1_same_pixel(go_next=false) {
+function step_same_pixel(go_next=false) {
     // Get data
-    //...
+    const k_same_value = document.getElementById('k_pixel');
+    const formData = new FormData();
+    formData.append('k_same_value', k_same_value.value);
     // Prepare success method
     function success_method(response, step) {
         display_image(response.images, step-1);
         if (go_next) {
 
             setCurrentStep(3)
-            step_2_resize()
+            step_pca()
         }
     }
     // Call the server
-    call_process('2', success_method);
+    call_process('2', success_method, formData);
 }
-/*
-function step_2_resize(go_next=false) {
-    // Get data
-    const param_width = document.getElementById('width');
-    const param_height = document.getElementById('height');
-    const formData = new FormData();
-    formData.append('width', param_width.value);
-    formData.append('height', param_height.value);
-    // Prepare success method
-    function success_method(response, step) {
-        display_image(response.images, step-1);
-        if (go_next) {
-            setCurrentStep(4)
-            step_3_pca()
-        }
-    }
-    // Call the server
-    call_process('3', success_method, formData);
-}*/
 
-function step_3_pca(go_next=false) {
+
+function step_pca(go_next=false) {
     // Get data
     const param_pca_components = document.getElementById('pca_components');
     const formData = new FormData();
     formData.append('pca_components', param_pca_components.value);
     // Prepare success method
     function success_method(response, step) {
-        display_image(response.images, step-1);
+        display_image(response.images, step);
+        ele = document.getElementById('image-container-' + step);
+        ele.innerHTML += "<br><br>Eigenface Images are not linked with Eigenface Vectors. This is just a visual representation of the process. The next step will give you the initial number of images.";
+
+
         if (go_next) {
             setCurrentStep(5)
-            step_4_noise()
+            step_noise()
         }
     }
     // Call the server
@@ -134,7 +124,7 @@ function step_3_pca(go_next=false) {
 }
 
 
-function step_4_noise(go_next=false) {
+function step_noise(go_next=false) {
     // Get data
     const param_epsilon = document.getElementById('privacyBudget');
     const formData = new FormData();
@@ -151,21 +141,9 @@ function step_4_noise(go_next=false) {
 }
 
 
-function step_5_ML(go_next=false) {
-    // Get data
-    //...
-    // Prepare success method
-    function success_method(response, step) {
-        if (go_next) {
-            setCurrentStep(7)
-        }
-    }
-    // Call the server
-    call_process('5', success_method);
-}
 
 
-function step_6_save(go_next=false) {
+function step_save(go_next=false) {
     // Get data
     //...
     // Prepare success method
@@ -173,6 +151,16 @@ function step_6_save(go_next=false) {
         htmlContent = "New user created. His identification number is: " + response.user_id
         document.getElementById('user_id').innerHTML = htmlContent;
     }
+    // Call the server
+    call_process('5', success_method);
+}
+
+
+function step_ML(go_next=false) {
+    // Get data
+    //...
+    // Prepare success method
+    function success_method(response, step) {}
     // Call the server
     call_process('6', success_method);
 }

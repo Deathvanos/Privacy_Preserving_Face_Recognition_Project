@@ -58,6 +58,8 @@ class GUIController2:
         # Check input images format
         if not files: return {'error': 'No files uploaded'}, 400
         if not all(isinstance(file, FileStorage) for file in files): return {'error': 'Uploaded files are invalid'}, 400
+        try: image_size = (int(image_size[0]), int(image_size[1]))
+        except: return {'error': 'image_size must be a tuple of int with size equal 2'}, 400
         # Init GUI Controller
         ctrl = GUIController2(files)
         ##### STEP 1 : Preprocessing #####
@@ -78,6 +80,8 @@ class GUIController2:
         if not ctrl.can_run_step(2):  return {'error': 'Step not ready to run'}, 400
         # Check input images format
         if k_same_value is None: return {'error': 'k_same_value parameter is missing'}, 400
+        try: k_same_value = int(k_same_value)
+        except: return {'error': 'k_same_value must be an int'}, 400
         ##### Step 2 : K-Same-Pixel #####
         try:  ctrl.step2 = pipeline.run_k_same_anonymization(ctrl.step1, k_same_value)
         except Exception as e:  return {'error': str(e)}, 400
@@ -86,7 +90,7 @@ class GUIController2:
         ctrl.save_into_pickle()
         # Return validation of the process
         images = ctrl.step2[list(ctrl.step2.keys())[0]]
-        images = [img['flattened_anonymized_image'] for img in ctrl.step2["upload_subject_1"]]
+        images = [img['flattened_anonymized_image'] for img in images   ]
         images = pillow_image_to_bytes(numpy_image_to_pillow(images, ctrl.image_size, True))
         return {'images': images}, 200
 
@@ -118,7 +122,10 @@ class GUIController2:
         ctrl.next_step = 4
         ctrl.save_into_pickle()
         # Return validation of the process
-        return {}, 200
+        images = ctrl.step3[0].components_
+        print(images)
+        images = pillow_image_to_bytes(numpy_image_to_pillow(images, ctrl.image_size, True))
+        return {'images':images}, 200
 
     @classmethod
     def apply_differential_privacy(cls, epsilon: float):

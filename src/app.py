@@ -87,13 +87,13 @@ def new_people_processing_page():
         case 1:
             inputs = request.files.getlist('fileInput')
             inputs = inputs if inputs else None
-            image_size = (100, 100)  # TODO: To integrate in HTML
+            image_size = request.form.get('img_size')
+            image_size = (image_size, image_size) if image_size else None
             response, code = GUIController2.initialize_new_user(inputs, image_size)
         case 2:
-            inputs = request.form.getlist('k_same_value')
-            inputs = inputs if inputs else None
-            inputs = 4 # TODO: To integrate in HTML
-            response, code = GUIController2.apply_k_same_pixel(inputs)
+            value = request.form.get('k_same_value')
+            value = value if value else None
+            response, code = GUIController2.apply_k_same_pixel(value)
         case 3:
             inputs = request.form.get('pca_components')
             response, code = GUIController2.generate_pca_components(inputs)
@@ -101,10 +101,10 @@ def new_people_processing_page():
             inputs = request.form.get('epsilon')
             response, code = GUIController2.apply_differential_privacy(inputs)
         case 5:
-            inputs = request.form.get('epsilon')
-            response, code = GUIController2.apply_differential_privacy(inputs)
-        case 6:
             response, code = GUIController2.save_user_in_db()
+        case 6:
+            response, code = {'error': "ML not implemented"}, 400
+
     return jsonify(response), code
 
 
