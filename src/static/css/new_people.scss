@@ -88,7 +88,7 @@ $white: #fff;
     cursor: pointer;
 }
 
-#upload-container {
+.upload-container {
     border: 2px solid $primary-color;
     margin-inline: 5%;
     display: grid;
@@ -102,4 +102,101 @@ $white: #fff;
     max-width: 100px;
     max-height: 100px;
     object-fit: cover;
+}
+
+.margin-top {
+    margin-top: 2%;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+#photo {
+    display: none;
+}
+
+
+#camera-container {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+#camera {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+#oval-overlay {
+    position: absolute;
+    top: 30%;
+    left: 30%;
+    width: 30%;
+    height: 50%;
+    border: 3px dashed red; /* Bordure pointillée rouge */
+    border-radius: 50% / 50%; /* Ovale parfait */
+    pointer-events: none; /* ⚡ Très important : laisse passer les clics/captures au <video> */
+}
+
+/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
+/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
+/** ---------- ---------- ---------- ------- TOGGLE ------ ---------- ---------- ---------- **/
+/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
+/** ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- **/
+
+.toggle {
+  --s: 20px; /* adjust this to control the size*/
+
+  height: calc(var(--s) + var(--s)/5);
+  width: auto; /* some browsers need this */
+  aspect-ratio: 2.25;
+  border-radius: var(--s);
+  margin: calc(var(--s)/2);
+  display: grid;
+  cursor: pointer;
+  background-color: #38acdc;
+  box-sizing: content-box;
+  overflow: hidden;
+  transition: .3s .1s;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+.toggle:before{
+  content: "";
+  padding: calc(var(--s)/10);
+  --_g: radial-gradient(circle closest-side at calc(100% - var(--s)/2) 50%,#000 96%,#0000);
+  background:
+    var(--_g) 0 /var(--_p,var(--s)) 100% no-repeat content-box,
+    var(--_g) var(--_p,0)/var(--s)  100% no-repeat content-box,
+    #fff;
+  mix-blend-mode: darken;
+  filter: blur(calc(var(--s)/12)) contrast(11);
+  transition: .4s, background-position .4s .1s,
+    padding cubic-bezier(0,calc(var(--_i,-1)*200),1,calc(var(--_i,-1)*200)) .25s .1s;
+}
+.toggle:checked {
+  background-color: #3cf32b;
+}
+.toggle:checked:before {
+  padding: calc(var(--s)/10 + .05px) calc(var(--s)/10);
+  --_p: 100%;
+  --_i: 1;
+}
+
+.toggle-container {
+  place-items: center;
+  display: flex;
+  justify-content: center;
 }

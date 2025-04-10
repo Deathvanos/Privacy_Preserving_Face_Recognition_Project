@@ -7,6 +7,11 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeStepClickListener();
     setCurrentStep(1);
     initializeFileUploadListener();
+    initializeToggleListener();
+    initializeImageSizeControl('img_size_value', 'img_size_unit', 100, 2500);
+    initializeImageSizeControl('k_pixel', 'k_pixel_unit', 4, 1000);
+    initializeImageSizeControl('pca_components', 'pca_components_unit', 11, 1000);
+    initializeImageSizeControl('privacyBudget', 'privacyBudget_unit', 0.1, 1000);
 });
 
 function setCurrentStep(stepNumber) {
@@ -64,10 +69,18 @@ function initializeFileUploadListener() {
 function step_upload(go_next=false) {
     // Get data
     const fileInput = document.getElementById('fileInput');
-    const img_size = document.getElementById('img_size');
-    const files = fileInput.files;
+    let files;
+    if (fileInput.files.length === 0 && typeof capturedFiles !== 'undefined') {
+        files = capturedFiles
+    }
+    else {
+        files = fileInput.files;
+    }
+    const img_size_value = document.getElementById('img_size_value');
+    const img_size_unit = document.getElementById('img_size_unit');
     const formData = new FormData();
-    formData.append('img_size', img_size.value);
+    formData.append('img_size_value', img_size_value.value);
+    formData.append('img_size_unit', img_size_unit.value);
     for (let i = 0; i < files.length; i++) {
         formData.append('fileInput', files[i]);
     }
@@ -115,7 +128,7 @@ function step_pca(go_next=false) {
 
 
         if (go_next) {
-            setCurrentStep(5)
+            setCurrentStep(4)
             step_noise()
         }
     }
@@ -133,7 +146,7 @@ function step_noise(go_next=false) {
     function success_method(response, step) {
         display_image(response.images, step);
         if (go_next) {
-            setCurrentStep(6)
+            setCurrentStep(5)
         }
     }
     // Call the server
@@ -198,8 +211,8 @@ function call_process(step, success_method, formDataBase=null) {
 }
 
 function set_error(text='') {
-    const errorContainer = document.getElementById('error');
-    errorContainer.innerHTML = `${text}`;
+    document.getElementById('error-up').innerHTML = `${text}`;
+    document.getElementById('error-down').innerHTML = `${text}`;
 }
 // ----------------------------------------------------------------------//
 // ---------------------------// UTILS //--------------------------------//
@@ -216,4 +229,59 @@ function display_image(images, step) {
         htmlContent += '';
         document.getElementById('image-container-' + step).innerHTML = htmlContent;
     }
+}
+
+
+
+function initializeToggleListener() {
+    const toggle = document.getElementById('toggle');
+    let cameraScriptLoaded = false;
+
+    toggle.addEventListener('change', function () {
+        if (toggle.checked) {
+            // Toggle ON = Take Photos
+            document.getElementById('import-photos-container').style.display = 'none';
+            document.getElementById('take-photos-container').style.display = 'block';
+            if (!cameraScriptLoaded) {
+                const script = document.createElement('script');
+                script.src = CAMERA_SCRIPT_URL
+                script.onload = () => console.log('Camera script loaded.');
+                document.body.appendChild(script);
+                cameraScriptLoaded = true;
+            }
+        } else {
+            // Toggle OFF = Import Photos
+            document.getElementById('import-photos-container').style.display = 'block';
+            document.getElementById('take-photos-container').style.display = 'none';
+        }
+    });
+}
+
+
+function initializeImageSizeControl(valueId, unitID, start, maxIntValue) {
+    const inputValue = document.getElementById(valueId);
+    const inputUnit = document.getElementById(unitID);
+
+    const BASE_SIZE = start;   // ref
+    const MAX_PX = maxIntValue;     // Max int
+    const MAX_PERCENT = 100; // Max %
+
+    inputValue.value = start;
+
+    function updateLimits() {
+        if (inputUnit.value === 'percent') {
+            console.log(inputValue.value , MAX_PERCENT)
+            if (inputValue.value > MAX_PERCENT) {
+                inputValue.value = MAX_PERCENT;
+            }
+        } else {
+            inputValue.max = MAX_PX;
+        }
+    }
+    // Call when unit change
+    inputUnit.addEventListener('change', function () {
+        updateLimits();
+    });
+    // Init change reader
+    updateLimits();
 }

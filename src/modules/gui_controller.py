@@ -35,6 +35,10 @@ class GUIController:
     #-----------------------------------------------------------------------------------#
     #-----------------------------------------------------------------------------------#
     @classmethod
+    def get_user_list(cls):
+        return DatabaseController().get_user_id_list()
+
+    @classmethod
     def get_user_data(cls, user_id: int):
         return DatabaseController().get_user(user_id)
 
@@ -51,11 +55,12 @@ class GUIController:
         return 0 <= step <= self.next_step
 
     @classmethod
-    def initialize_new_user(cls, files: list[FileStorage], image_size:(int, int)=None,) -> (dict, int):
+    def initialize_new_user(cls, files: list[FileStorage], image_size:(int, int)=None, img_size_unit:str="px") -> (dict, int):
         """Step 1 : Preprocessing"""
         # Check input images format
         if not files: return {'error': 'No files uploaded'}, 400
         if not all(isinstance(file, FileStorage) for file in files): return {'error': 'Uploaded files are invalid'}, 400
+        # TODO: img_size_unit % to integrate
         try: image_size = (int(image_size[0]), int(image_size[1]))
         except: return {'error': 'image_size must be a tuple of int with size equal 2'}, 400
         # Init GUI Controller
@@ -163,7 +168,7 @@ class GUIController:
         except Exception as e:
             return {'error': str(e)}, 400
         # Destroy Pickle GUI Controller
-        GUIController.delete_temp_file()
+        GUIController.delete_pickle_file()
         # Return validation of the process
         return {'user_id': user_id}, 200
 

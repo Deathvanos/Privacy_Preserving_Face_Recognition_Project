@@ -4,7 +4,6 @@
     {% assets "scss_new_people" %}
         <link rel=stylesheet type=text/css href="{{ ASSET_URL }}">
     {% endassets %}
-    <script src="{{ url_for('static', filename='js/new_people.js') }}"></script>
 {% endblock %}
 
 {% block header %}{% include 'tpl/header.html' %}{% endblock %}
@@ -21,31 +20,53 @@
     </div>
 
 
-    <p id="error"></p>
+    <p id="error-up" class="error"></p>
 
     <!-- Import photos -->
     <div class="panel hidden center" id="panel-1">
-        <div class="upload-button">
-            <input type="file" id="fileInput" name="fileInput" accept="image/*" style="display: none;" multiple>
-            <label for="fileInput" class="upload-label">Choose photos</label>
+        <div>
+            <label for="img_size_value">Image size:</label>
+            <input type="number" id="img_size_value" name="img_size_value" min="1" step="1">
+            <select id="img_size_unit" name="img_size_unit">
+                <option value="px">px</option>
+                <option value="percent">%</option>
+            </select>
         </div>
-        <div id="upload-container"></div>
         <br>
-        <label for="img_size">Image size (px):</label>
-        <input type="number" id="img_size" name="img_size" value="100" min="47" max="2500" step="1">
-        <br>
-        Or image size (%): TODO
+        <div class="toggle-container">
+            <label for="toggle">Import photos</label>
+            <input class="toggle" id="toggle" name="toggle" type="checkbox" style="--s:20px">
+            <label for="toggle">Take photos</label>
+        </div>
+        <div id="import-photos-container">
+            <div class="upload-button">
+                <input type="file" id="fileInput" name="fileInput" accept="image/*" style="display: none;" multiple>
+                <label for="fileInput" class="upload-label">Choose photos</label>
+            </div>
+            <div id="upload-container" class="upload-container"></div>
+        </div>
+        <div id="take-photos-container" style="display:none;">
+            <div id="camera-container">
+                <video id="camera" autoplay></video>
+                <div id="oval-overlay"></div>
+            </div>
+            <button id="capture-btn" class="button">Capture Photo</button>
+            <canvas id="photo"></canvas>
+        </div>
         <br>
         <button type="button" class="button" onclick="step_upload()">Run</button>
         <button type="button" class="button" onclick="step_upload(true)">Next</button>
     </div>
     <!-- Apply K-same pixel -->
     <div class="panel hidden center" id="panel-2">
-        <label for="k_pixel">Number by K-Same Pixel:</label>
-        <input type="number" id="k_pixel" name="k_pixel" value="4" min="1" max="5000" step="1">
-        <br>
-        Or % of K-Same Pixel: TODO
-        <br>
+        <div>
+            <label for="k_pixel">Number by K-Same Pixel:</label>
+            <input type="number" id="k_pixel" name="k_pixel" min="1" step="1">
+            <select id="k_pixel_unit" name="k_pixel_unit">
+                <option value="px">k_pixel</option>
+                <option value="percent">%</option>
+            </select>
+        </div>
         <button type="button" class="button" onclick="step_same_pixel()">Run</button>
         <button type="button" class="button" onclick="step_same_pixel(true)">Next</button>
         <br><br>
@@ -53,11 +74,14 @@
     </div>
     <!-- Generate PCA -->
     <div class="panel hidden center" id="panel-4">
-        <label for="pca_components">Number of PCA components:</label>
-        <input type="number" id="pca_components" name="pca_components" value="10" min="1" max="50" step="1">
-        <br>
-        Or % of PCA components: TODO
-        <br>
+        <div>
+            <label for="pca_components">Number of PCA components:</label>
+            <input type="number" id="pca_components" name="pca_components" min="1" step="1">
+            <select id="pca_components_unit" name="pca_components">
+                <option value="px">components</option>
+                <option value="percent">%</option>
+            </select>
+        </div>
         <button type="button" class="button" onclick="step_pca()">Run</button>
         <button type="button" class="button" onclick="step_pca(true)">Next</button>
         <br><br>
@@ -65,10 +89,14 @@
     </div>
     <!-- Add noise -->
     <div class="panel hidden center" id="panel-5">
-        <br>
-        <label for="privacyBudget">Privacy Budget (epsilon):</label>
-        <input type="number" id="privacyBudget" name="privacyBudget" value="0.1" min="0" max="10000" step="0.01">
-        <br>
+        <div>
+            <label for="privacyBudget">Privacy Budget:</label>
+            <input type="number" id="privacyBudget" name="privacyBudget" min="0" step="0.01">
+            <select id="privacyBudget_unit" name="privacyBudget_unit">
+                <option value="px">epsilon</option>
+                <option value="percent">%</option>
+            </select>
+        </div>
         <button type="button" class="button" onclick="step_noise()">Run</button>
         <button type="button" class="button" onclick="step_noise(true)">Next</button>
         <br><br>
@@ -89,6 +117,13 @@
         <button type="button" class="button" onclick="step_ML(true)">Next</button>
     </div>
 
+
+    <p id="error-down" class="error"></p>
+
 {% endblock %}
 
-{% block footer %}{% include 'tpl/footer.html' %}{% endblock %}
+{% block footer %}
+    <script>const CAMERA_SCRIPT_URL = "{{ url_for('static', filename='js/utils/camera.js') }}";</script>
+    <script src="{{ url_for('static', filename='js/new_people.js') }}"></script>
+    {% include 'tpl/footer.html' %}
+{% endblock %}

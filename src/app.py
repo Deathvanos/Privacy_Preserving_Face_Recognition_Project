@@ -86,9 +86,11 @@ def new_people_processing_page():
         case 1:
             inputs = request.files.getlist('fileInput')
             inputs = inputs if inputs else None
-            image_size = request.form.get('img_size')
-            image_size = (image_size, image_size) if image_size else None
-            response, code = GUIController.initialize_new_user(inputs, image_size)
+            img_size_value = request.form.get('img_size_value')
+            img_size_value = (img_size_value, img_size_value) if img_size_value else None
+            img_size_unit = request.form.get('img_size_unit')
+            img_size_unit = img_size_unit if img_size_unit else None
+            response, code = GUIController.initialize_new_user(inputs, img_size_value, img_size_unit)
         case 2:
             value = request.form.get('k_same_value')
             value = value if value else None
