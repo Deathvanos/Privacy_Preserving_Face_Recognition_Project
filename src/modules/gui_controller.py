@@ -126,7 +126,6 @@ class GUIController:
         ctrl.save_into_pickle()
         # Return validation of the process
         images = ctrl.step3[0].components_
-        print(images)
         images = pillow_image_to_bytes(numpy_image_to_pillow(images, ctrl.image_size, True))
         return {'images':images}, 200
 
