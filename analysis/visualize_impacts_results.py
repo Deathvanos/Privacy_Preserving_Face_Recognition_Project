@@ -143,7 +143,7 @@ def plot_image_variants(original_img_pil: Image.Image, variant_images_pil: list[
 
     ax = plt.subplot(1, n_cols, 1)
     ax.imshow(original_img_np, cmap=plt.cm.gray)
-    ax.set_title("Originale\n(Prétraitée)", size=10) # Modifié pour indiquer prétraitée
+    ax.set_title("Original\n(Preprocessed)", size=10) # Modifié pour indiquer prétraitée
     ax.set_xticks(()); ax.set_yticks(())
 
     for i, img_pil in enumerate(variant_images_pil):
@@ -292,7 +292,7 @@ def visualize_k_impact_line(subject_id_str: str, lfw_id: int, k_values: list[int
         save_path = os.path.join(output_dir, f"subject_{lfw_id}_2_k_impact.pdf")
         # Utilise l'originale prétraitée passée en argument
         plot_image_variants(original_focus_pil_proc, variants_k_pil, titles_k,
-                            f"Sujet {lfw_id}: Impact de K (K-Same)",
+                            f"Subject {lfw_id}: K Value Impact (K-Same)",
                             save_path=save_path)
     else:
         logging.error("Visualisation K échouée, aucune variante générée.")
@@ -362,7 +362,7 @@ def visualize_ratio_impact_line(subject_id_str: str, lfw_id: int, ratios: list[f
         save_path = os.path.join(output_dir, f"subject_{lfw_id}_3_ratio_impact_k{fixed_k}_no_noise.pdf")
         # Utilise l'originale prétraitée passée en argument
         plot_image_variants(original_focus_pil_proc, variants_ratio_pil, titles_ratio,
-                            f"Sujet {lfw_id}: Impact Ratio PCA (k={fixed_k}, Pas de Bruit)",
+                            f"Subject {lfw_id}: PCA Ratio Impact (k={fixed_k}, No noise)",
                             save_path=save_path)
     else:
         logging.error("Visualisation Ratio échouée, aucune variante générée.")
@@ -433,7 +433,7 @@ def visualize_epsilon_impact_line(subject_id_str: str, lfw_id: int, fixed_ratio:
         save_path = os.path.join(output_dir, f"subject_{lfw_id}_4_epsilon_impact_k{fixed_k}_r{fixed_ratio:.2f}.pdf")
         # Utilise l'originale prétraitée passée en argument
         plot_image_variants(original_focus_pil_proc, variants_eps_pil, titles_eps,
-                            f"Sujet {lfw_id}: Impact Epsilon (k={fixed_k}, Ratio={fixed_ratio:.2f})",
+                            f"Subject {lfw_id}: Epsilon Value Impact (k={fixed_k}, Ratio={fixed_ratio:.2f})",
                             save_path=save_path)
     else:
         logging.error("Visualisation Epsilon échouée, aucune variante générée.")
@@ -506,12 +506,12 @@ def main():
     # Viz 1: Afficher l'image originale (taille LFW native) - Optionnel, gardé pour info
     logging.info(f"\n--- 1. Affichage Image Originale Sujet {lfw_id} (Taille LFW: {w_lfw}x{h_lfw}) ---")
     save_path_orig_lfw = os.path.join(PLOT_OUTPUT_DIR, f"subject_{lfw_id}_1_original_lfw_size.pdf")
-    plot_image_variants(original_focus_pil_native, [], [], f"Sujet {lfw_id}: Image Originale (Taille LFW)", save_path_orig_lfw)
+    plot_image_variants(original_focus_pil_native, [], [], f"Subject {lfw_id}: Original Image (LFW Size)", save_path_orig_lfw)
 
     # Viz 1b: Afficher l'image originale prétraitée seule
     logging.info(f"\n--- 1b. Affichage Image Originale Sujet {lfw_id} (Prétraitée: {DEFAULT_IMAGE_SIZE[0]}x{DEFAULT_IMAGE_SIZE[1]}) ---")
     save_path_orig_proc = os.path.join(PLOT_OUTPUT_DIR, f"subject_{lfw_id}_1b_original_preprocessed.pdf")
-    plot_image_variants(original_focus_pil_proc, [], [], f"Sujet {lfw_id}: Image Originale (Prétraitée)", save_path_orig_proc)
+    plot_image_variants(original_focus_pil_proc, [], [], f"Subject {lfw_id}: Original Image (Preprocessed)", save_path_orig_proc)
 
 
     # Viz 2: Impact de K (affiche l'originale prétraitée)
