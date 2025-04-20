@@ -1,17 +1,12 @@
 import os
 import pickle
 
-import PIL
-from numpy import ndarray
-from poetry.console.commands import self
 from werkzeug.datastructures import FileStorage
 import numpy as np
-import modules.anony_process_pipeline as pipeline
+import src.modules.anony_process_pipeline as pipeline
 
-from config import IMAGE_SIZE
-from modules.image_preprocessing import preprocess_image
-from modules.utils_image import pillow_image_to_bytes, filestorage_image_to_numpy, numpy_image_to_pillow
-from modules.database_controller import DatabaseController
+from src.modules.utils_image import pillow_image_to_bytes, filestorage_image_to_numpy, numpy_image_to_pillow
+from src.modules.database_controller import DatabaseController
 
 class GUIController:
     path = r"data\temp_gui_controller.pkl"

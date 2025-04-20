@@ -16,6 +16,7 @@ $ cd Privacy_Preserving_Face_Recognition_Project/
 $ python -m venv venv
 $ .\venv\Scripts\activate
 $ pip install -r requirements.txt
+$ .\setenv.ps1
 $ flask run
 ```
 

@@ -16,13 +16,14 @@ The aim of the project is the development a prototype that take a photo and matc
 # * https://www.geeksforgeeks.org/single-page-portfolio-using-flask/
 # * https://realpython.com/flask-blueprint/
 # * https://www.geeksforgeeks.org/flask-rendering-templates/
-# Usefully commands
-# $ pip freeze > requirements.txt; poetry init
+# Usefully commands (pip install pipreqs)
+# $ pipreqs  > requirements.txt
+# $ poetry init # for generate .toml file
 # ---------------------------------------------------------------------------
 from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
-import config
-from modules.gui_controller import GUIController
+import src.config as config
+from src.modules.gui_controller import GUIController
 from os import listdir
 
 app = Flask(__name__)
