@@ -36,6 +36,7 @@ def load_label_encoder(filepath: str) -> Optional[LabelEncoder]:
 # --- Fonction Principale de Chargement ---
 
 def load_anonymized_images_flat(
+        # .......................................................sql_lite
     data_dir: str,
     img_width: int,
     img_height: int,

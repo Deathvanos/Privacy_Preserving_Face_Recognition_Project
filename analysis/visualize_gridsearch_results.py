@@ -540,7 +540,7 @@ def main_visualize(
 
 if __name__ == "__main__":
     # --- Configuration for this specific run ---
-    csv_location = os.path.join("analysis_results_grid_search_modular", "grid_search_results.csv")
+    csv_location = os.path.join("analysis_results_custom_run", "grid_search_3d_results.csv")
     results_save_directory = "plots_analysis_output"
     ssim_limit = 0.50
     mse_limit = 1800
