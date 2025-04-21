@@ -27,7 +27,6 @@ from src.modules.gui_controller import GUIController
 from os import listdir
 
 app = Flask(__name__)
-app.config.from_object(config.Config)
 app.secret_key = config.SECRET_KEY
 # Configure SCSS bundle
 assets = Environment(app)

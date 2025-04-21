@@ -1,13 +1,10 @@
-IMAGE_SIZE = (100, 100)
-DATABASE_PATH = "../data/database"
+# Flask config
 SECRET_KEY = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
 
-import os
+IMAGE_SIZE = (100, 100)
+DATABASE_PATH = "../data/database"
 
 
-class Config:
-    def __init__(self, **kwargs):
-        pass
 
 # --- Chemins et Noms ---
 # Chemin vers le dossier contenant les images anonymisées (structure plate)

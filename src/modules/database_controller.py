@@ -2,6 +2,8 @@ import os
 import json
 import sqlite3
 import numpy as np
+from poetry.console.commands import self
+
 
 class DatabaseController:
 
@@ -58,6 +60,16 @@ class DatabaseController:
         self.cursor.execute(f"SELECT {self._column_id} FROM {self._table_name}")
         result = self.cursor.fetchall()
         return [row[0] for row in result] # Send list of user IDs
+
+    def get_user_vectors(self):
+        self.cursor.execute(f"SELECT {self._column_data} FROM {self._table_name}")
+        result = self.cursor.fetchall()
+        return [row[0] for row in result]
+
+    def get_table(self):
+        self.cursor.execute(f"SELECT * FROM {self._table_name}")
+        result = self.cursor.fetchall()
+        return result
 
 
 if __name__ == '__main__':
