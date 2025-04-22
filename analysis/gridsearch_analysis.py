@@ -1,4 +1,3 @@
-# Imports remain largely the same
 import binascii
 import os
 import sys
@@ -14,8 +13,7 @@ from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
 import pandas as pd
 from PIL import Image, UnidentifiedImageError
-from tqdm import tqdm
-# Removed sklearn.datasets import from core logic - data loading is now separate
+from tqdm import tqdm # Barre de progression
 from skimage.metrics import structural_similarity as ssim
 from sklearn.metrics import mean_squared_error
 
@@ -24,619 +22,382 @@ warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 warnings.filterwarnings("ignore", message="Setting `channel_axis=-1`", category=FutureWarning)
 warnings.filterwarnings("ignore", message="Inputs have mismatched dtype", category=UserWarning)
 
-
 # --- Adjust PYTHONPATH for local modules ---
-# (Keep this section if your modules are in a 'src' directory)
-module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# Assure que les modules dans 'src' peuvent être importés
+module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')) # Ajusté pour pointer vers src
 if module_path not in sys.path:
+    # Insère au début pour prioriser les modules locaux
     sys.path.insert(0, module_path)
-# --- End PYTHONPATH Adjustment ---
+    print(f"Added to sys.path: {module_path}") # Debug print
 
 # --- Import local modules ---
-# (Keep this section, crucial for the pipeline)
 try:
-    from src.modules import anony_process_pipeline
-    from src.modules import utils_image # Assuming this might be needed by pipeline
-    from src.config import IMAGE_SIZE as DEFAULT_IMAGE_SIZE # Default, but can be overridden
-    _modules_imported = True
+    # Assurez-vous que ces imports fonctionnent correctement avec votre structure de projet
+    from modules import anony_process_pipeline
+    from modules import utils_image
+    from modules import image_preprocessing
+    from modules import data_loader # Pour charger les données LFW ou custom
+    from config import IMAGE_SIZE as DEFAULT_IMAGE_SIZE
+    from config import LFW_DATASET_PATH, CUSTOM_DATASET_PATH # Assurez-vous que ces chemins sont corrects dans config.py
 except ImportError as e:
-    print(f"[ERREUR] Échec de l'importation des modules locaux : {e}")
-    print("Vérifiez la structure de votre projet et que les fichiers __init__.py sont présents.")
-    print(f"Chemin de recherche Python actuel : {sys.path}")
-    _modules_imported = False
-except FileNotFoundError:
-    print("[ERREUR] Le fichier 'src/config.py' est introuvable. Vérifiez son existence.")
-    _modules_imported = False
-# Add specific handling if config is missing but we want to proceed with a default size
-except Exception as e:
-    print(f"[ERREUR] Erreur inattendue lors de l'importation : {e}")
-    _modules_imported = False
-
-if not _modules_imported:
-      print("[CRITIQUE] Importations locales échouées. Arrêt du script.")
-      sys.exit(1)
-# --- End Imports ---
-
-# --- Global Logger Setup ---
-# Configure logger once globally
-logger = logging.getLogger(__name__) # Use module-specific logger name
-logger.setLevel(logging.INFO)
-log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s')
-
-# Avoid adding handlers multiple times if script/module is reloaded
-if not logger.handlers:
-    # Console Handler
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(log_formatter)
-    logger.addHandler(stream_handler)
-
-    # File Handler (Optional - can be configured in the main script)
-    # log_filename = f"grid_search_analysis_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    # file_handler = logging.FileHandler(log_filename, encoding='utf-8')
-    # file_handler.setFormatter(log_formatter)
-    # logger.addHandler(file_handler)
-    # logger.info(f"Logging initialisé. Sortie console et fichier : {os.path.abspath(log_filename)}")
-
-# --- Utility Functions (Mostly Unchanged, but ensure they use logger) ---
-
-def decode_b64_to_numpy(b64_string: str) -> Optional[np.ndarray]:
-    """Décode une chaîne image base64 en tableau NumPy (niveaux de gris)."""
-    if not isinstance(b64_string, str): return None
-    try:
-        img_bytes = base64.b64decode(b64_string)
-        img_pil = Image.open(io.BytesIO(img_bytes)).convert('L')
-        return np.array(img_pil, dtype=np.uint8)
-    except (binascii.Error, UnidentifiedImageError, IOError, ValueError) as e:
-        # logger.debug(f"Erreur décodage Base64 : {e}. String(début): {b64_string[:50]}...")
-        return None
-    except Exception as e:
-        logger.error(f"Erreur inattendue décodage b64 : {e}", exc_info=False)
-        return None
-
-def preprocess_originals_for_metrics(
-    df_input: pd.DataFrame,
-    target_size: Tuple[int, int] = DEFAULT_IMAGE_SIZE,
-    image_col: str = 'userFaces',
-    id_col: str = 'imageId'
-) -> Dict[str, np.ndarray]:
-    """
-    Prétraite les images originales du DataFrame pour la comparaison de métriques.
-    Args:
-        df_input: DataFrame contenant les images originales (PIL Images).
-        target_size: Taille (height, width) cible pour le redimensionnement.
-        image_col: Nom de la colonne contenant les objets Image PIL.
-        id_col: Nom de la colonne contenant l'identifiant unique de l'image.
-    Returns:
-        Dictionnaire mappant imageId -> image_originale_numpy (prétraitée).
-    """
-    logger.info(f"Prétraitement des images originales pour calcul des métriques (taille cible: {target_size})...")
-    original_images_map = {}
-
-    if image_col not in df_input.columns or id_col not in df_input.columns:
-        logger.error(f"Les colonnes requises ('{image_col}', '{id_col}') ne sont pas dans le DataFrame.")
-        return {}
-
-    # Utilise les fonctions d'aide de la pipeline si possible pour cohérence
-    if not hasattr(anony_process_pipeline, 'preprocess_image'):
-         logger.error("La fonction 'preprocess_image' est introuvable dans 'anony_process_pipeline'.")
-         return {}
-
-    for index, row in tqdm(df_input.iterrows(), total=df_input.shape[0], desc="Préparation originaux"):
-        try:
-            img_pil = row[image_col]
-            img_id = str(row[id_col]) # Assure ID en string
-
-            if not isinstance(img_pil, Image.Image):
-                logger.warning(f"Image invalide (type: {type(img_pil)}) pour imageId {img_id}. Skip.")
-                continue
-
-            # Applique le prétraitement (grayscale, resize) sans aplatissement
-            preprocessed_data = anony_process_pipeline.preprocess_image(
-                img_pil,
-                resize_size=target_size,
-                create_flattened=False # Important: On veut l'image 2D
-            )
-
-            if preprocessed_data and 'grayscale_image' in preprocessed_data:
-                 img_np = np.array(preprocessed_data['grayscale_image'], dtype=np.uint8)
-                 original_images_map[img_id] = img_np
-            else:
-                 logger.warning(f"Échec du prétraitement initial pour imageId {img_id}. Skip.")
-
-        except Exception as e:
-            logger.error(f"Erreur lors du prétraitement de l'image originale {row.get(id_col, index)}: {e}", exc_info=False)
-
-    processed_count = len(original_images_map)
-    total_count = len(df_input)
-    logger.info(f"{processed_count}/{total_count} images originales prétraitées et stockées pour comparaison.")
-    if processed_count < total_count:
-         logger.warning(f"{total_count - processed_count} images originales n'ont pas pu être prétraitées.")
-    return original_images_map
-
-
-def calculate_metrics_for_combination(
-    pipeline_output: Dict[str, Dict[str, Any]],
-    original_images_map: Dict[str, np.ndarray]
-) -> Tuple[float, float]:
-    """
-    Calcule MSE et SSIM moyens pour une sortie de pipeline donnée.
-    (Fonction largement inchangée, mais revue pour la robustesse)
-    Returns:
-        Tuple (avg_mse, avg_ssim). Retourne (np.nan, np.nan) si le calcul est impossible.
-    """
-    all_mse = []
-    all_ssim = []
-    processed_pairs_count = 0
-    total_possible_pairs = 0
-
-    if not pipeline_output:
-        # logger.warning("Pipeline n'a retourné aucune sortie.") # Loggé dans la boucle principale
-        return np.nan, np.nan
-    if not original_images_map:
-        logger.error("Map des images originales est vide. Impossible de calculer les métriques.")
-        return np.nan, np.nan
-
-    for subject_id, data in pipeline_output.items():
-        reconstructed_b64_list = data.get("final_reconstructed_b64", [])
-        image_ids_list = data.get("imageIds", [])
-        total_possible_pairs += len(image_ids_list) # Compte basé sur les IDs d'entrée
-
-        if len(reconstructed_b64_list) != len(image_ids_list):
-            logger.warning(f"Sujet {subject_id}: Discordance entre images reconstruites ({len(reconstructed_b64_list)}) et IDs ({len(image_ids_list)}). Comparaison partielle possible.")
-            # On continue, on essaiera de matcher ceux qui existent
-
-        for i, img_id in enumerate(image_ids_list):
-            # Vérifie si une image reconstruite existe à cet index
-            if i >= len(reconstructed_b64_list) or reconstructed_b64_list[i] is None:
-                # logger.debug(f"Pas d'image reconstruite pour imageId {img_id}. Skip paire.")
-                continue
-
-            recon_b64 = reconstructed_b64_list[i]
-            img_orig_np = original_images_map.get(img_id)
-
-            if img_orig_np is None:
-                # logger.warning(f"Image originale non trouvée dans le map pour imageId {img_id}. Skip paire.")
-                continue
-
-            img_recon_np = decode_b64_to_numpy(recon_b64)
-            if img_recon_np is None:
-                # logger.debug(f"Échec décodage image reconstruite pour imageId {img_id}. Skip paire.")
-                continue
-
-            if img_orig_np.shape != img_recon_np.shape:
-                logger.warning(f"Discordance de forme pour imageId {img_id}: Originale {img_orig_np.shape}, Reconstruite {img_recon_np.shape}. Skip paire.")
-                continue
-
-            # --- Calcul MSE ---
-            try:
-                mse = mean_squared_error(img_orig_np, img_recon_np)
-                all_mse.append(mse)
-            except Exception as e:
-                logger.warning(f"Erreur calcul MSE pour imageId {img_id}: {e}. Skip MSE.")
-                all_mse.append(np.nan)
-
-            # --- Calcul SSIM ---
-            try:
-                min_dim = min(img_orig_np.shape)
-                # win_size impair et <= min_dim
-                win_size = min(7, min_dim) if min_dim >= 7 else (min_dim if min_dim % 2 != 0 else max(1, min_dim - 1))
-
-                if win_size < 3:
-                     logger.debug(f"Fenêtre SSIM trop petite ({win_size}) pour imageId {img_id}. Skip SSIM.")
-                     ssim_val = np.nan
-                else:
-                     ssim_val = ssim(img_orig_np, img_recon_np,
-                                     data_range=img_orig_np.max() - img_orig_np.min(), # Range dynamique ou 255 si uint8
-                                     win_size=win_size,
-                                     channel_axis=None) # Grayscale
-                all_ssim.append(ssim_val)
-                processed_pairs_count += 1
-
-            except ValueError as e:
-                logger.warning(f"Erreur valeur SSIM pour imageId {img_id} (win_size={win_size}): {e}. Skip SSIM.")
-                all_ssim.append(np.nan)
-            except Exception as e:
-                logger.error(f"Erreur inattendue SSIM pour imageId {img_id}: {e}", exc_info=False) # Limit exc_info logging
-                all_ssim.append(np.nan)
-
-    avg_mse = np.nanmean(all_mse) if all_mse else np.nan
-    avg_ssim = np.nanmean(all_ssim) if all_ssim else np.nan
-
-    if total_possible_pairs > 0:
-        logger.debug(f"Métriques calculées sur {processed_pairs_count}/{total_possible_pairs} paires valides. Avg MSE={avg_mse:.4f}, Avg SSIM={avg_ssim:.4f}")
-    elif not pipeline_output:
-         logger.debug("Aucune sortie de pipeline, donc aucune métrique calculée.")
-    else:
-         logger.debug("Aucune paire valide trouvée pour le calcul des métriques.")
-
-
-    return avg_mse, avg_ssim
-
-# --- MODULAR Grid Search Function ---
-
-def run_parameter_grid_search(
-    df_images: pd.DataFrame,
-    original_images_map: Dict[str, np.ndarray],
-    k_values: List[int],
-    ratio_values: List[float],
-    epsilon_values: List[float],
-    image_size: Tuple[int, int] = DEFAULT_IMAGE_SIZE,
-    image_col: str = 'userFaces', # Ajout pour spécifier la colonne image
-    id_col: str = 'imageId',       # Ajout pour spécifier la colonne ID
-    subject_col: str = 'subject_number' # Ajout pour spécifier la colonne sujet
-) -> Optional[pd.DataFrame]:
-    """
-    Exécute un Grid Search 3D sur k, n_component_ratio, et epsilon pour la pipeline d'anonymisation.
-
-    Args:
-        df_images: DataFrame contenant les données d'images. Doit avoir au moins
-                   les colonnes spécifiées par image_col, id_col, subject_col.
-                   La colonne image_col doit contenir des objets PIL.Image.
-        original_images_map: Dictionnaire pré-calculé mappant imageId -> image originale prétraitée (np.ndarray).
-        k_values: Liste des valeurs de k (pour k-same-k) à tester.
-        ratio_values: Liste des valeurs de n_component_ratio (pour PCA) à tester.
-        epsilon_values: Liste des valeurs d'epsilon (pour bruit Laplacien) à tester.
-        image_size: Taille (height, width) à utiliser pour le redimensionnement dans la pipeline.
-        image_col: Nom de la colonne contenant les objets Image PIL dans df_images.
-        id_col: Nom de la colonne contenant l'identifiant unique de l'image dans df_images.
-        subject_col: Nom de la colonne contenant l'identifiant du sujet dans df_images.
-
-
-    Returns:
-        DataFrame Pandas contenant les résultats (paramètres, avg_mse, avg_ssim) pour chaque combinaison,
-        ou None si une erreur majeure survient.
-    """
-    logger.info(f"--- DÉMARRAGE DU GRID SEARCH PARAMÉTRISÉ (k, ratio, epsilon) ---")
-    logger.info(f"Paramètres K      : {k_values}")
-    logger.info(f"Paramètres Ratio  : {ratio_values}")
-    logger.info(f"Paramètres Epsilon: {epsilon_values}")
-    logger.info(f"Taille image cible: {image_size}")
-
-    # Validation des entrées
-    required_cols = [image_col, id_col, subject_col]
-    if df_images is None or df_images.empty:
-        logger.error("Le DataFrame d'images fourni est vide. Arrêt.")
-        return None
-    if not all(col in df_images.columns for col in required_cols):
-        logger.error(f"Le DataFrame doit contenir les colonnes : {required_cols}. Colonnes trouvées : {df_images.columns.tolist()}. Arrêt.")
-        return None
-    if not original_images_map:
-        logger.error("Le map des images originales est vide. Métriques non calculables. Arrêt.")
-        return None
-    if not hasattr(anony_process_pipeline, 'run_pipeline'):
-        logger.error("La fonction 'run_pipeline' est introuvable dans 'anony_process_pipeline'. Arrêt.")
-        return None
-
-
-    param_combinations = list(itertools.product(k_values, ratio_values, epsilon_values))
-    total_combinations = len(param_combinations)
-    logger.info(f"Nombre total de combinaisons de paramètres à tester : {total_combinations}")
-
-    if total_combinations == 0:
-        logger.warning("Aucune combinaison de paramètres à tester.")
-        return pd.DataFrame(columns=['k', 'n_component_ratio', 'epsilon', 'avg_mse', 'avg_ssim']) # Retourne un DF vide
-
-    results_list = []
-    pbar = tqdm(param_combinations, total=total_combinations, desc="Grid Search 3D")
-
-    for k_val, ratio_val, eps_val in pbar:
-        pbar.set_postfix_str(f"k={k_val}, r={ratio_val:.2f}, ε={eps_val:.2f}")
-        start_time_comb = time.time()
-        pipeline_output = None
-        avg_mse, avg_ssim = np.nan, np.nan # Default to NaN
-
-        try:
-            # Crée une copie légère pour la pipeline si elle modifie en place (bonne pratique)
-            # Note: La pipeline devrait idéalement ne pas modifier df_images
-            df_images_copy = df_images[[id_col, image_col, subject_col]].copy()
-
-            # Exécute la pipeline complète
-            # Assurez-vous que run_pipeline accepte bien ces noms de colonnes ou adaptez
-            pipeline_output = anony_process_pipeline.run_pipeline(
-                df_images=df_images_copy,
-                k_same_k_value=k_val,
-                n_components_ratio=ratio_val,
-                epsilon=eps_val,
-                image_size_override=image_size, # Utilise la taille fournie
-                # Potentiellement passer les noms de colonnes si la pipeline les utilise
-                # image_id_col=id_col,
-                # face_col=image_col,
-                # subject_id_col=subject_col
-            )
-
-            # Calcule les métriques si la pipeline a retourné quelque chose
-            if pipeline_output is not None:
-                 avg_mse, avg_ssim = calculate_metrics_for_combination(
-                     pipeline_output,
-                     original_images_map
-                 )
-            else:
-                 logger.warning(f"La pipeline n'a rien retourné pour k={k_val}, r={ratio_val:.2f}, ε={eps_val:.2f}. Métriques non calculées.")
-
-
-        except Exception as e:
-            logger.error(f"Erreur critique PENDANT l'exécution de la pipeline pour k={k_val}, r={ratio_val:.2f}, ε={eps_val:.2f}: {e}", exc_info=True)
-            # avg_mse, avg_ssim restent NaN
-
-        finally:
-            # Stocke les résultats (même en cas d'erreur, avec NaN)
-            results_list.append({
-                'k': k_val,
-                'n_component_ratio': ratio_val,
-                'epsilon': eps_val,
-                'avg_mse': avg_mse,
-                'avg_ssim': avg_ssim
-            })
-            end_time_comb = time.time()
-            # logger.debug(f"Combinaison (k={k_val}, r={ratio_val:.1f}, ε={eps_val:.1f}) traitée en {end_time_comb - start_time_comb:.2f} sec. MSE={avg_mse:.4f}, SSIM={avg_ssim:.4f}")
-
-
-    if not results_list:
-        logger.error("Aucun résultat n'a été collecté pendant le Grid Search.")
-        return None
-
-    df_results = pd.DataFrame(results_list)
-    logger.info("--- GRID SEARCH PARAMÉTRISÉ TERMINÉ ---")
-    return df_results
-
-# --- (Optional) Data Loading Example (LFW specific - keep outside core logic) ---
-def load_and_prepare_lfw_data(
-    min_faces: int,
-    n_samples: int,
-    target_image_size: Tuple[int, int], # Nécessaire pour le prétraitement initial
-    image_col: str = 'userFaces',
-    id_col: str = 'imageId',
-    subject_col: str = 'subject_number'
-) -> Optional[Tuple[pd.DataFrame, Dict[str, np.ndarray]]]:
-    """
-    Charge et prépare les données LFW spécifiquement pour le format requis
-    par `run_parameter_grid_search`. Inclut le prétraitement des originaux.
-
-    Returns:
-        Tuple (df_prepared, original_images_map) ou None en cas d'erreur.
-    """
-    logger.info(f"Chargement et préparation des données LFW (min_faces={min_faces}, n_samples={n_samples})...")
-    try:
-        # Importation locale pour garder la fonction autonome si LFW n'est pas toujours utilisé
-        from sklearn.datasets import fetch_lfw_people
-    except ImportError:
-        logger.critical("Scikit-learn n'est pas installé. Impossible de charger LFW. `pip install scikit-learn`")
-        return None
-
-    try:
-        # Tente de charger LFW
-        lfw_people = fetch_lfw_people(min_faces_per_person=min_faces, resize=0.4, color=False) # Charge en grayscale
-        native_h, native_w = lfw_people.images.shape[1], lfw_people.images.shape[2]
-        logger.info(f"Images LFW chargées ({len(lfw_people.data)} images brutes) avec shape native (après resize 0.4): ({native_h}, {native_w})")
-
-        # Normalisation et type
-        data = lfw_people.data.clip(0, 255).astype(np.uint8) # Assure uint8 [0, 255]
-
-        df = pd.DataFrame(data)
-        df['subject_id_temp'] = lfw_people.target # ID numérique du sujet LFW
-
-        # Équilibrage et échantillonnage
-        grouped = df.groupby('subject_id_temp')
-        balanced_dfs = []
-        logger.info("Échantillonnage pour équilibrer le dataset...")
-        for subject_id, group in tqdm(grouped, desc="Échantillonnage par sujet"):
-            if len(group) >= n_samples:
-                balanced_dfs.append(group.sample(n=n_samples, random_state=42)) # Sample without replacement by default if n <= len(group)
-
-        if not balanced_dfs:
-            logger.error(f"Aucun sujet trouvé avec au moins {n_samples} images après chargement.")
-            return None
-
-        df_balanced = pd.concat(balanced_dfs).reset_index(drop=True)
-        logger.info(f"{df_balanced['subject_id_temp'].nunique()} sujets échantillonnés, {len(df_balanced)} images au total.")
-
-        # Conversion en objets Image PIL
-        def row_to_pil(row_pixels):
-            pixels = row_pixels.values.astype(np.uint8) # Assure le bon type
-            return Image.fromarray(pixels.reshape((native_h, native_w)), mode='L') # 'L' pour grayscale
-
-        logger.info("Conversion des lignes de pixels en objets Image PIL...")
-        pixel_columns = list(range(native_h * native_w))
-        df_balanced[image_col] = df_balanced[pixel_columns].apply(row_to_pil, axis=1)
-
-        # Création d'un ID unique et sélection/renommage des colonnes
-        df_balanced[id_col] = df_balanced.index.astype(str)
-        df_final = df_balanced[[image_col, id_col, 'subject_id_temp']].copy()
-        df_final.rename(columns={'subject_id_temp': subject_col}, inplace=True)
-
-        logger.info(f"DataFrame LFW préparé : {df_final.shape[0]} images ({df_final[subject_col].nunique()} sujets).")
-
-        # --- Étape cruciale : Prétraiter les originaux pour la comparaison ---
-        # Utilise la taille cible fournie pour cette étape !
-        original_images_map = preprocess_originals_for_metrics(
-            df_final,
-            target_size=target_image_size,
-            image_col=image_col,
-            id_col=id_col
-        )
-
-        if not original_images_map:
-            logger.error("Échec du pré-traitement des images originales après chargement LFW.")
-            return None
-
-        return df_final, original_images_map
-
-    except FileNotFoundError:
-        logger.critical("Données LFW non trouvées. Essayez de les télécharger manuellement ou vérifiez votre installation scikit-learn.")
-        return None
-    except Exception as e:
-        logger.critical(f"Erreur critique lors du chargement/préparation de LFW : {e}", exc_info=True)
-        return None
-
-
-# --- Main Execution Example ---
-def run_analysis(
-    k_vals: List[int],
-    ratio_vals: List[float],
-    eps_vals: List[float],
-    output_dir: str = "analysis_results_grid_search_search_3d",
-    image_size_for_pipeline: Tuple[int, int] = DEFAULT_IMAGE_SIZE,
-    use_lfw: bool = True, # Flag pour utiliser LFW ou charger des données autrement
-    lfw_min_faces: int = 20,
-    lfw_n_samples: int = 10,
-    # Ajoutez ici des paramètres si vous chargez des données custom
-    # custom_data_path: Optional[str] = None
-):
-    """
-    Orchestre l'exécution de l'analyse de grid search.
-    """
-    start_global_time = time.time()
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Configurer le gestionnaire de fichiers log ici si désiré
-    log_filename = f"grid_search_analysis_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    log_filepath = os.path.join(output_dir, log_filename)
-    try:
-        # Vérifier si le gestionnaire de fichiers existe déjà pour éviter les doublons
-        if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
-            file_handler = logging.FileHandler(log_filepath, encoding='utf-8')
-            file_handler.setFormatter(log_formatter)
-            logger.addHandler(file_handler)
-            logger.info(f"Logging fichier activé: {os.path.abspath(log_filepath)}")
-        else:
-             logger.info(f"Logging fichier déjà configuré (probablement vers {log_filepath})")
-    except Exception as e:
-        logger.error(f"Impossible de créer le fichier log à {log_filepath}: {e}")
-
-    logger.info("==========================================================")
-    logger.info("===== DÉMARRAGE SCRIPT ANALYSE GRID SEARCH MODULAIRE =====")
-    logger.info(f"Répertoire de sortie : {os.path.abspath(output_dir)}")
-    logger.info("==========================================================")
-
-    # 1. Charger et préparer les données
-    df_input_images = None
-    originals_map = None
-
-    if use_lfw:
-        data_load_result = load_and_prepare_lfw_data(
-            min_faces=lfw_min_faces,
-            n_samples=lfw_n_samples,
-            target_image_size=image_size_for_pipeline # Important: la taille utilisée PARTOUT
-        )
-        if data_load_result:
-            df_input_images, originals_map = data_load_result
-    else:
-        # === SECTION POUR CHARGER VOS PROPRES DONNÉES ===
-        logger.info("Chargement de données personnalisées (logique à implémenter)...")
-        # Exemple :
-        # df_input_images = load_my_custom_images(custom_data_path) # Doit retourner un DataFrame avec PIL Images, imageId, subject_number
-        # if df_input_images is not None:
-        #     originals_map = preprocess_originals_for_metrics(
-        #         df_input_images,
-        #         target_size=image_size_for_pipeline,
-        #         image_col='ma_colonne_image', # Adaptez les noms de colonnes
-        #         id_col='mon_id_image'
-        #     )
-        # =============================================
-        logger.error("Chargement de données personnalisées non implémenté dans cet exemple.")
-        # Pour l'instant, on arrête si LFW n'est pas utilisé
-        return
-
-
-    if df_input_images is None or originals_map is None:
-        logger.critical("Échec du chargement ou de la préparation des données. Arrêt du script.")
-        return
-
-    # 2. Exécuter le Grid Search Modulaire
-    df_grid_results = run_parameter_grid_search(
-        df_images=df_input_images,
-        original_images_map=originals_map,
-        k_values=k_vals,
-        ratio_values=ratio_vals,
-        epsilon_values=eps_vals,
-        image_size=image_size_for_pipeline,
-        # Assurez-vous que ces noms de colonnes correspondent à ceux de votre DataFrame préparé
-        image_col='userFaces',
-        id_col='imageId',
-        subject_col='subject_number'
+    print(f"Erreur d'importation: {e}")
+    print("Assurez-vous que le PYTHONPATH est correct ou que le script est lancé depuis le bon répertoire.")
+    sys.exit(1)
+
+# --- CONSTANTES DE SEUILS ---
+DEFAULT_SSIM_THRESHOLD = 0.45
+DEFAULT_MSE_THRESHOLD = 1500
+
+# --- Configuration du Logging ---
+# (Le logging sera configuré plus précisément dans le bloc main)
+logger = logging.getLogger(__name__)
+
+
+def setup_logging(log_dir: str) -> None:
+    """Configure le logging pour fichier et console."""
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"analysis_log_{datetime.datetime.now():%Y%m%d_%H%M%S}.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout) # Afficher aussi sur la console
+        ]
     )
 
-    # 3. Sauvegarder et analyser (optionnel) les résultats
-    if df_grid_results is not None:
-        logger.info("\n--- APERÇU DES RÉSULTATS DU GRID SEARCH ---")
-        with pd.option_context('display.max_rows', 10, 'display.float_format', '{:.4f}'.format):
-            print(df_grid_results)
-        logger.info(f"Nombre total de résultats collectés : {len(df_grid_results)}")
+def load_data_sample(
+    use_lfw: bool,
+    image_size: Tuple[int, int],
+    lfw_config: Optional[Dict] = None,
+    custom_data_path: Optional[str] = None,
+    n_samples: int = 5
+) -> List[np.ndarray]:
+    """Charge un échantillon d'images (LFW ou custom)."""
+    images_sample = []
+    if use_lfw:
+        logger.info("Chargement des données LFW...")
+        lfw_loader = data_loader.LFWLoader(
+            lfw_path=LFW_DATASET_PATH, # Depuis config.py
+            min_faces_per_person=lfw_config.get("lfw_min_faces", 10), # Utiliser config ou défaut
+            target_size=image_size,
+            slice_=(slice(70, 195), slice(78, 172)), # Utiliser config ou défaut?
+            color_mode='grayscale', # Supposer grayscale pour SSIM/MSE simples
+            resize_interpolation=Image.Resampling.LANCZOS # Utiliser config ou défaut
+        )
+        dataset = lfw_loader.load_dataset()
+        if not dataset:
+            logger.error("Aucune donnée LFW chargée. Vérifiez la configuration.")
+            return []
 
-        csv_filename = "grid_search_3d_results.csv"
-        csv_path = os.path.join(output_dir, csv_filename)
-        try:
-            df_grid_results.to_csv(csv_path, index=False, encoding='utf-8')
-            logger.info(f"Résultats complets sauvegardés dans : {os.path.abspath(csv_path)}")
-        except Exception as e:
-            logger.error(f"Erreur lors de la sauvegarde du fichier CSV ({csv_path}): {e}")
+        # Prendre un échantillon aléatoire parmi toutes les images LFW chargées
+        all_lfw_images = [img for person_imgs in dataset.values() for img in person_imgs]
+        if len(all_lfw_images) >= n_samples:
+             # Sélection aléatoire sans remplacement
+            indices = np.random.choice(len(all_lfw_images), n_samples, replace=False)
+            images_sample = [all_lfw_images[i] for i in indices]
+        else:
+            logger.warning(f"Moins d'images LFW ({len(all_lfw_images)}) que demandé ({n_samples}). Utilisation de toutes les images.")
+            images_sample = all_lfw_images
+        logger.info(f"{len(images_sample)} images LFW chargées pour l'échantillon.")
 
-        # --- Analyse simple des résultats ---
-        if not df_grid_results.empty:
-             # Meilleur SSIM (compromis utilité - plus proche de l'original)
-             if 'avg_ssim' in df_grid_results.columns and df_grid_results['avg_ssim'].notna().any():
-                 try:
-                     best_ssim_row = df_grid_results.loc[df_grid_results['avg_ssim'].idxmax()]
-                     logger.info("\n--- Combinaison avec le MEILLEUR SSIM (max) ---")
-                     print(best_ssim_row)
-                 except Exception as e: logger.error(f"Erreur recherche SSIM max: {e}")
-
-             # Pire SSIM (compromis vie privée - plus différent de l'original)
-             if 'avg_ssim' in df_grid_results.columns and df_grid_results['avg_ssim'].notna().any():
-                 try:
-                      worst_ssim_row = df_grid_results.loc[df_grid_results['avg_ssim'].idxmin()]
-                      logger.info("\n--- Combinaison avec le PIRE SSIM (min) ---")
-                      print(worst_ssim_row)
-                 except Exception as e: logger.error(f"Erreur recherche SSIM min: {e}")
-
-             # Meilleur MSE (compromis utilité - erreur la plus basse)
-             if 'avg_mse' in df_grid_results.columns and df_grid_results['avg_mse'].notna().any():
-                 try:
-                      best_mse_row = df_grid_results.loc[df_grid_results['avg_mse'].idxmin()]
-                      logger.info("\n--- Combinaison avec le MEILLEUR MSE (min) ---")
-                      print(best_mse_row)
-                 except Exception as e: logger.error(f"Erreur recherche MSE min: {e}")
     else:
-        logger.error("Le Grid Search n'a pas retourné de DataFrame de résultats.")
+        logger.info(f"Chargement des données depuis le dossier custom: {custom_data_path}")
+        if not custom_data_path or not os.path.isdir(custom_data_path):
+            logger.error(f"Chemin de données custom invalide: {custom_data_path}")
+            return []
 
-    end_global_time = time.time()
-    logger.info("==========================================================")
-    logger.info("===== ANALYSE GRID SEARCH MODULAIRE TERMINÉE =====")
-    logger.info(f"Temps d'exécution total : {end_global_time - start_global_time:.2f} secondes.")
-    logger.info(f"Résultats et logs dans : {os.path.abspath(output_dir)}")
-    logger.info("Prochaines étapes : Analyser le CSV, visualiser (heatmaps?), inspection visuelle.")
-    logger.info("==========================================================")
+        custom_loader = data_loader.CustomDataLoader(
+            dataset_path=custom_data_path,
+            target_size=image_size,
+            color_mode='grayscale' # Supposer grayscale
+        )
+        # Charger seulement N samples aléatoires
+        all_files = custom_loader.find_image_files()
+        if len(all_files) >= n_samples:
+            sample_files = np.random.choice(all_files, n_samples, replace=False)
+        else:
+            logger.warning(f"Moins d'images custom ({len(all_files)}) que demandé ({n_samples}). Utilisation de toutes les images.")
+            sample_files = all_files
+
+        images_sample = [custom_loader.load_image(f) for f in sample_files if custom_loader.load_image(f) is not None]
+        logger.info(f"{len(images_sample)} images custom chargées pour l'échantillon.")
+
+    return images_sample
 
 
+def run_analysis(
+    ks: List[int],
+    pca_ratios: List[float],
+    epsilons: List[float],
+    image_size: Tuple[int, int],
+    output_dir: str,
+    use_lfw: bool = True,
+    lfw_config: Optional[Dict] = None,
+    custom_data_path: Optional[str] = None,
+    n_samples: int = 5
+) -> Optional[Dict[str, Any]]:
+    """
+    Exécute la Grid Search, évalue les combinaisons, sauvegarde les résultats,
+    et identifie la meilleure combinaison basée sur les seuils SSIM/MSE.
+
+    Retourne:
+        Le dictionnaire de la meilleure combinaison trouvée, ou None si aucune ne respecte les seuils.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info("--- Démarrage de l'analyse Grid Search ---")
+    logger.info(f"Paramètres à tester:")
+    logger.info(f"  k: {ks}")
+    logger.info(f"  PCA Ratios: {[f'{r:.3f}' for r in pca_ratios]}")
+    logger.info(f"  Epsilons: {epsilons}")
+    logger.info(f"Seuils: SSIM >= {DEFAULT_SSIM_THRESHOLD}, MSE <= {DEFAULT_MSE_THRESHOLD}")
+    logger.info(f"Taille image pipeline: {image_size}")
+    logger.info(f"Source de données: {'LFW' if use_lfw else 'Custom'}")
+    logger.info(f"Nombre d'images par échantillon: {n_samples}")
+    logger.info(f"Répertoire de sortie: {os.path.abspath(output_dir)}")
+
+    # --- Chargement des données échantillon ---
+    original_images_sample = load_data_sample(
+        use_lfw=use_lfw,
+        image_size=image_size,
+        lfw_config=lfw_config,
+        custom_data_path=custom_data_path,
+        n_samples=n_samples
+    )
+    if not original_images_sample:
+        logger.error("Échec du chargement des données échantillon. Arrêt de l'analyse.")
+        return None
+
+    # --- Initialisation de l'objet pipeline (sera réutilisé avec différents params) ---
+    # Note: L'entraînement PCA doit être fait une seule fois si possible,
+    # mais ici on le ré-entraîne pour chaque ratio pour simplifier la boucle.
+    # Une optimisation serait de pré-entraîner PCA et de sélectionner les composantes.
+
+    # --- Préparation des combinaisons ---
+    param_combinations = list(itertools.product(ks, pca_ratios, epsilons))
+    logger.info(f"Nombre total de combinaisons à tester: {len(param_combinations)}")
+
+    # --- Collecte des résultats ---
+    all_results = []
+    start_time_grid = time.time()
+
+    # --- Boucle Principale ---
+    for k_val, pca_ratio, epsilon_val in tqdm(param_combinations, desc="Grid Search Progress", unit="combinaison"):
+        combination_start_time = time.time()
+        ssim_scores = []
+        mse_scores = []
+        error_occured = False
+        error_msg = ""
+
+        try:
+            # Instancier le pipeline pour cette combinaison
+            # Note: Le modèle EigenFace est re-fit à chaque fois ici.
+            pipeline = anony_process_pipeline.AnonymizerPipeline(
+                k_value=k_val,
+                pca_variance_ratio=pca_ratio,
+                epsilon=epsilon_val,
+                image_shape=image_size, # Important pour EigenFace et KSamePixel
+                fit_pca_on_sample=original_images_sample # Fit PCA sur l'échantillon
+            )
+
+            # Appliquer sur l'échantillon d'images
+            for original_img_array in original_images_sample:
+                # Assurer que l'image est dans le bon format (ex: uint8, grayscale)
+                if original_img_array is None:
+                    logger.warning("Image échantillon None rencontrée, ignorée.")
+                    continue
+
+                # S'assurer que l'image a la bonne taille (devrait déjà être le cas si load_data fait bien son travail)
+                if original_img_array.shape[:2] != image_size:
+                     img_pil = Image.fromarray(original_img_array)
+                     img_resized = img_pil.resize(image_size, Image.Resampling.LANCZOS)
+                     original_img_array = np.array(img_resized)
+
+                 # Vérifier si l'image est déjà en niveaux de gris
+                if len(original_img_array.shape) == 3 and original_img_array.shape[2] == 3:
+                    # Convertir en niveaux de gris si nécessaire
+                    prep_image = image_preprocessing.preprocess_image(original_img_array, target_size=image_size, grayscale=True)
+                elif len(original_img_array.shape) == 2:
+                    prep_image = original_img_array # Déjà en niveaux de gris
+                else:
+                     logger.warning(f"Format d'image inattendu: {original_img_array.shape}. Ignorée.")
+                     continue
+
+                # Appliquer toutes les étapes du pipeline
+                anonymized_image_array = pipeline.apply_all(prep_image) # apply_all gère les étapes
+
+                # Calculer les métriques (en s'assurant des types et range)
+                # Convertir en float64 pour éviter les problèmes de type avec scikit-image/learn
+                original_float = prep_image.astype(np.float64)
+                anonymized_float = anonymized_image_array.astype(np.float64)
+
+                # SSIM: data_range est important. channel_axis doit être None pour grayscale.
+                current_ssim = ssim(original_float, anonymized_float,
+                                    data_range=original_float.max() - original_float.min(), # Typiquement 255 pour uint8
+                                    channel_axis=None) # Pas d'axe de canal pour grayscale
+
+                # MSE
+                current_mse = mean_squared_error(original_float, anonymized_float)
+
+                ssim_scores.append(current_ssim)
+                mse_scores.append(current_mse)
+
+            # --- Agréger les métriques pour cette combinaison ---
+            avg_ssim = np.mean(ssim_scores) if ssim_scores else np.nan
+            avg_mse = np.mean(mse_scores) if mse_scores else np.nan
+            processing_time = time.time() - combination_start_time
+
+            # --- Stocker le résultat ---
+            result_entry = {
+                'k': k_val,
+                'pca_ratio': pca_ratio,
+                'epsilon': epsilon_val,
+                'avg_ssim': avg_ssim,
+                'avg_mse': avg_mse,
+                'time_sec': processing_time,
+                'n_samples_processed': len(ssim_scores),
+                'error': None
+            }
+            all_results.append(result_entry)
+
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement (k={k_val}, ratio={pca_ratio:.3f}, eps={epsilon_val}): {e}", exc_info=False) # exc_info=True pour traceback complet
+            error_occured = True
+            error_msg = str(e)
+            all_results.append({
+                'k': k_val, 'pca_ratio': pca_ratio, 'epsilon': epsilon_val,
+                'avg_ssim': np.nan, 'avg_mse': np.nan,
+                'time_sec': time.time() - combination_start_time,
+                'n_samples_processed': 0,
+                'error': error_msg
+            })
+
+    # --- Fin de la boucle Grid Search ---
+    end_time_grid = time.time()
+    total_duration = end_time_grid - start_time_grid
+    logger.info(f"Grid search terminé en {total_duration:.2f} secondes.")
+
+    # --- Traitement des résultats ---
+    if not all_results:
+        logger.warning("Aucun résultat n'a été collecté pendant la Grid Search.")
+        return None
+
+    results_df = pd.DataFrame(all_results)
+
+    # --- Sauvegarde de TOUS les résultats (même ceux qui échouent ou hors seuils) ---
+    csv_filename = f"grid_search_results_full_{datetime.datetime.now():%Y%m%d_%H%M%S}.csv"
+    csv_filepath = os.path.join(output_dir, csv_filename)
+    try:
+        results_df.to_csv(csv_filepath, index=False, float_format='%.5f')
+        logger.info(f"Résultats complets (incluant erreurs) sauvegardés dans : {csv_filepath}")
+    except Exception as e:
+        logger.error(f"Impossible de sauvegarder le fichier CSV complet : {e}")
+
+    # Filtrer les résultats valides (non NaN) pour la sélection
+    results_df_valid = results_df.dropna(subset=['avg_ssim', 'avg_mse']).copy()
+
+    # --- Filtrage basé sur les seuils ---
+    if not results_df_valid.empty:
+        logger.info(f"Filtrage des {len(results_df_valid)} résultats valides avec SSIM >= {DEFAULT_SSIM_THRESHOLD} et MSE <= {DEFAULT_MSE_THRESHOLD}")
+        valid_combinations_df = results_df_valid[
+            (results_df_valid['avg_ssim'] >= DEFAULT_SSIM_THRESHOLD) &
+            (results_df_valid['avg_mse'] <= DEFAULT_MSE_THRESHOLD)
+        ]
+    else:
+        logger.warning("Aucun résultat valide (non-NaN) n'a été obtenu.")
+        valid_combinations_df = pd.DataFrame() # DataFrame vide
+
+    # --- Sélection de la meilleure combinaison ---
+    best_combination_dict = None
+    if not valid_combinations_df.empty:
+        logger.info(f"{len(valid_combinations_df)} combinaisons respectent les seuils.")
+        # Trier par SSIM descendant (meilleur), puis MSE ascendant (meilleur)
+        valid_combinations_sorted = valid_combinations_df.sort_values(
+            by=['avg_ssim', 'avg_mse'], ascending=[False, True]
+        )
+        # Prendre la première ligne (la meilleure)
+        best_combination_row = valid_combinations_sorted.iloc[0]
+        best_combination_dict = best_combination_row.to_dict()
+
+        logger.info("==================== MEILLEURE COMBINAISON TROUVÉE ====================")
+        logger.info(f"  Paramètres: k={best_combination_dict['k']}, ratio={best_combination_dict['pca_ratio']:.3f}, epsilon={best_combination_dict['epsilon']}")
+        logger.info(f"  Métriques : SSIM={best_combination_dict['avg_ssim']:.4f} (Seuil >= {DEFAULT_SSIM_THRESHOLD})")
+        logger.info(f"              MSE ={best_combination_dict['avg_mse']:.2f} (Seuil <= {DEFAULT_MSE_THRESHOLD})")
+        logger.info(f"  Temps moyen par combinaison: {results_df_valid['time_sec'].mean():.2f}s")
+        logger.info("=======================================================================")
+
+    else:
+        logger.warning("========================= ATTENTION ===========================")
+        logger.warning(f"Aucune combinaison n'a respecté les seuils (SSIM >= {DEFAULT_SSIM_THRESHOLD} ET MSE <= {DEFAULT_MSE_THRESHOLD}).")
+        logger.warning("Suggestions: Ajuster les seuils, élargir la plage des paramètres testés, ou vérifier les erreurs dans les logs.")
+        # Afficher les meilleures valeurs globales obtenues pour info
+        if not results_df_valid.empty:
+             try:
+                 best_ssim_overall = results_df_valid.loc[results_df_valid['avg_ssim'].idxmax()]
+                 logger.info(f"  Meilleur SSIM obtenu (global): {best_ssim_overall['avg_ssim']:.4f} (avec k={best_ssim_overall['k']}, r={best_ssim_overall['pca_ratio']:.3f}, e={best_ssim_overall['epsilon']}, MSE={best_ssim_overall['avg_mse']:.2f})")
+             except ValueError:
+                 logger.info("  Impossible de déterminer le meilleur SSIM global (probablement que des NaN).")
+
+             try:
+                 best_mse_overall = results_df_valid.loc[results_df_valid['avg_mse'].idxmin()]
+                 logger.info(f"  Meilleur MSE obtenu (global) : {best_mse_overall['avg_mse']:.2f} (avec k={best_mse_overall['k']}, r={best_mse_overall['pca_ratio']:.3f}, e={best_mse_overall['epsilon']}, SSIM={best_mse_overall['avg_ssim']:.4f})")
+             except ValueError:
+                 logger.info("  Impossible de déterminer le meilleur MSE global (probablement que des NaN).")
+        logger.warning("=============================================================")
+
+    logger.info(f"\nAnalyse terminée. Vérifiez le fichier CSV complet pour tous les détails: {csv_filepath}")
+    logger.info("======================= FIN DE L'ANALYSE ======================\n")
+
+    return best_combination_dict # Retourne le dictionnaire de la meilleure combinaison
+
+
+# --- Point d'entrée principal ---
 if __name__ == "__main__":
-    # --- Définissez vos paramètres et lancez l'analyse ici ---
 
     # 1. Définir les listes de paramètres à tester
-    ks_to_test = [2, 5, 10] # Exemple
-    ratios_to_test = np.linspace(0.1, 0.7, 4).tolist() # Exemple: [0.1, 0.3, 0.5, 0.7]
-    epsilons_to_test = [0.1, 0.5, 1.0] # Exemple
+    ks_to_test = [2, 5, 10, 15] # Exemple étendu
+    ratios_to_test = np.linspace(0.1, 0.8, 5).tolist() # Exemple: [0.1, 0.275, 0.45, 0.625, 0.8]
+    epsilons_to_test = [0.1, 0.5, 1.0, 2.0, 5.0] # Exemple étendu
 
-    # 2. Définir la taille d'image (doit être cohérente)
-    #    Utilise la valeur de config par défaut ou spécifiez une autre taille
-    pipeline_image_size = DEFAULT_IMAGE_SIZE # ou par ex., (64, 64)
+    # 2. Définir la taille d'image cible (utiliser celle de config.py par défaut)
+    pipeline_image_size = DEFAULT_IMAGE_SIZE # Ex: (100, 100)
 
     # 3. Configurer le répertoire de sortie
-    results_directory = "analysis_results_custom_run"
+    results_directory = "analysis_results_selection" # Nom du dossier de sortie
 
-    # 4. Choisir la source de données (LFW ou custom)
-    use_lfw_data = True
-    lfw_params = {
-        "lfw_min_faces": 15, # Moins strict pour tester
-        "lfw_n_samples": 5   # Moins d'échantillons pour tester
-    } if use_lfw_data else {}
+    # 4. Choisir la source de données (LFW ou custom) et le nombre d'échantillons
+    use_lfw_data = True # Mettre à False pour utiliser custom
+    number_of_samples = 10 # Nombre d'images à utiliser pour calculer SSIM/MSE moyen par combinaison
+    lfw_parameters = {
+        "lfw_min_faces": 10, # Minimum de visages par personne dans LFW
+        # "slice_": (slice(70, 195), slice(78, 172)) # Décommenter et ajuster si besoin
+    }
+    custom_data_folder = CUSTOM_DATASET_PATH # Chemin vers dossier custom depuis config.py
 
-    # 5. Lancer l'analyse principale
-    run_analysis(
-        k_vals=ks_to_test,
-        ratio_vals=ratios_to_test,
-        eps_vals=epsilons_to_test,
+    # 5. Configurer le logging
+    setup_logging(os.path.join(results_directory, "logs"))
+
+    # --- Lancer l'analyse ---
+    best_params_found = run_analysis(
+        ks=ks_to_test,
+        pca_ratios=ratios_to_test,
+        epsilons=epsilons_to_test,
+        image_size=pipeline_image_size,
         output_dir=results_directory,
-        image_size_for_pipeline=pipeline_image_size,
         use_lfw=use_lfw_data,
-        **lfw_params # Passe les paramètres LFW si use_lfw_data est True
+        lfw_config=lfw_parameters if use_lfw_data else None,
+        custom_data_path=custom_data_folder if not use_lfw_data else None,
+        n_samples=number_of_samples
     )
+
+    # --- Conclusion ---
+    if best_params_found:
+        logger.info("Script principal terminé. La meilleure combinaison identifiée est:")
+        # Afficher joliment le dictionnaire retourné
+        for key, value in best_params_found.items():
+             if isinstance(value, float):
+                 logger.info(f"  {key}: {value:.4f}")
+             else:
+                 logger.info(f"  {key}: {value}")
+    else:
+        logger.info("Script principal terminé. Aucune combinaison optimale trouvée selon les critères définis.")
