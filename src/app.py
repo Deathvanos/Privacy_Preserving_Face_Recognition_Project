@@ -23,7 +23,7 @@ The aim of the project is the development a prototype that take a photo and matc
 from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
 import src.config as config
-from src.modules.gui_controller import GUIController
+from controller.user_creation_controller import UserCreationController
 from os import listdir
 
 app = Flask(__name__)
@@ -52,12 +52,12 @@ def search_people_page():
 
 @app.route("/show_database")
 def show_database_page():
-    user_list = GUIController.get_user_list()
+    user_list = UserCreationController.get_user_list()
     return render_template("show_database.html", user_list=user_list)
 
 @app.route("/analysis")
 def analysis_page():
-    user_list = GUIController.get_user_list()
+    user_list = UserCreationController.get_user_list()
     return render_template("analysis.html", user_list=user_list)
 
 @app.route("/new_people")
@@ -90,22 +90,21 @@ def new_people_processing_page():
             img_size_value = (img_size_value, img_size_value) if img_size_value else None
             img_size_unit = request.form.get('img_size_unit')
             img_size_unit = img_size_unit if img_size_unit else None
-            response, code = GUIController.initialize_new_user(inputs, img_size_value, img_size_unit)
+            response, code = UserCreationController.initialize_new_user(inputs, img_size_value, img_size_unit)
         case 2:
             value = request.form.get('k_same_value')
             value = value if value else None
-            response, code = GUIController.apply_k_same_pixel(value)
+            response, code = UserCreationController.apply_k_same_pixel(value)
         case 3:
             inputs = request.form.get('pca_components')
-            response, code = GUIController.generate_pca_components(inputs)
+            response, code = UserCreationController.generate_pca_components(inputs)
         case 4:
             inputs = request.form.get('epsilon')
-            response, code = GUIController.apply_differential_privacy(inputs)
+            response, code = UserCreationController.apply_differential_privacy(inputs)
         case 5:
-            response, code = GUIController.save_user_in_db()
+            response, code = UserCreationController.save_user_in_db()
         case 6:
             response, code = {'error': "ML not implemented"}, 400
-
     return jsonify(response), code
 
 
@@ -115,7 +114,7 @@ def get_user_list_action():
     print(request.form)
     print(request.files)
     user_id = request.form.get('user_id')
-    user_data = GUIController.get_user_data(int(user_id))
+    user_data = UserCreationController.get_user_data(int(user_id))
     # Return good execution message
     return jsonify({'result': 'end', 'user_id':user_id, "user_data":user_data.tolist()}), 200
 
@@ -125,7 +124,7 @@ def delete_user_action():
     print(request.files)
     print("delete_user called")
     user_id = request.form.get('user_id')
-    result = GUIController.delete_user(int(user_id))
+    result = UserCreationController.delete_user(int(user_id))
     # Return good execution message
     return jsonify({'result': 'end', 'user_id':user_id, "nb_rows_delete": result}), 200
 
