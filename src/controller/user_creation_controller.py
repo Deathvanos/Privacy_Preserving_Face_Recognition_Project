@@ -10,9 +10,12 @@ from controller.database_controller import DatabaseController
 
 class UserCreationController:
 
-    path = r"data\temp_gui_controller.pkl"
+    pkl_path = r"data\temp_gui_controller.pkl"
+    reconstructed_dir = r"data\reconstructed_pipeline"
 
     def __init__(self, images: list[FileStorage], new_pkl_path: str=None):
+        print("Initializing UserCreationController")
+        self.images = images
         if not images:
             raise Exception('No images')
         if not all(isinstance(image, FileStorage) for image in images):
@@ -20,12 +23,10 @@ class UserCreationController:
         # Images Attributs
         self.image_size: (int, int) = (100,) * 2
         self.images_source: list[np.ndarray] = filestorage_image_to_numpy(images)
+        # Try close FileStorage link
         self.step1 = self.step2 = self.step3 = self.step4 = self.step5 = None
         self.next_step = 1
-        if new_pkl_path:
-            UserCreationController.path = new_pkl_path
-
-
+        if new_pkl_path: UserCreationController.pkl_path = new_pkl_path
 
     #-----------------------------------------------------------------------------------#
     #-----------------------------------------------------------------------------------#
@@ -53,7 +54,7 @@ class UserCreationController:
         return 0 <= step <= self.next_step
 
     @classmethod
-    def initialize_new_user(cls, files: list[FileStorage], image_size:(int, int)=None, img_size_unit:str="px") -> (dict, int):
+    def initialize_new_user(cls, files: list[FileStorage], image_size:(int, int)=None, img_size_unit:str="px", pkl_path=None) -> (dict, int):
         """Step 1 : Preprocessing"""
         # Check input images format
         if not files: return {'error': 'No files uploaded'}, 400
@@ -63,7 +64,7 @@ class UserCreationController:
         try: image_size = (int(image_size[0]), int(image_size[1]))
         except: return {'error': 'image_size must be a tuple of int with size equal 2'}, 400
         # Init GUI Controller
-        ctrl = UserCreationController(files)
+        ctrl = UserCreationController(files, new_pkl_path=pkl_path)
         ##### STEP 1 : Preprocessing #####
         try: ctrl.step1, ctrl.image_size = pipeline.run_preprocessing(filestorage_list=files, image_size_override=image_size)
         except Exception as e:  return {'error': str(e)}, 400
@@ -177,17 +178,22 @@ class UserCreationController:
 
     def save_into_pickle(self):
         # Create pickle file
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        with open(self.path, 'wb') as file:
+        os.makedirs(os.path.dirname(self.pkl_path), exist_ok=True)
+        with open(self.pkl_path, 'wb') as file:
             # Save data
-            pickle.dump(self, file)
+            pickle.dump(self.to_dict(), file)
 
     @classmethod
     def load_pickle_file(cls):
         try:
-            with open(UserCreationController.path, 'rb') as file:
-                obj = pickle.load(file)
-            return obj
+            with open(cls.pkl_path, 'rb') as file:
+                data = pickle.load(file)
+            # Create new instance without call __init__
+            instance = cls.__new__(cls)
+            instance.__init__ = lambda *a, **kw: None
+            for key, value in data.items():
+                setattr(instance, key, value)
+            return instance
         except FileNotFoundError:
             return None
         except Exception as e:
@@ -195,6 +201,16 @@ class UserCreationController:
 
     @classmethod
     def delete_pickle_file(cls):
-        if os.path.exists(UserCreationController.path):
-            os.remove(UserCreationController.path)
+        if os.path.exists(UserCreationController.pkl_path):
+            os.remove(UserCreationController.pkl_path)
+
+    def to_dict(self):
+        return {
+            "pkl_path": self.pkl_path,
+            "reconstructed_dir": self.reconstructed_dir,
+            "image_size": self.image_size,
+            "images_source": self.images_source,
+            "step1": self.step1,"step2": self.step2,"step3": self.step3,"step4": self.step4,"step5": self.step5,
+            "next_step": self.next_step,
+        }
 

@@ -32,14 +32,17 @@ except ImportError:
     print("Warning: Using fallback imports and default IMAGE_SIZE.")
 
 
-logging.basicConfig(level=logging.INFO,
-
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Répertoire pour enregistrer les images reconstruites finales (dossier unique)
-RECONSTRUCTED_DIR = "../../data/reconstructed_pipeline"
-os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# TODO: If hard coded - May cause some problems depending on where the console is executed.
+RECONSTRUCTED_DIR = ''
+def set_reconstructed_dir(reconstructed_dir="../../data/reconstructed_pipeline"):
+    global RECONSTRUCTED_DIR
+    RECONSTRUCTED_DIR = reconstructed_dir
+    os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
 
 
 # --- Fonctions de Sauvegarde ---

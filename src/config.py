@@ -84,4 +84,4 @@ if MODEL_ARCHITECTURE.startswith('transfer_') and COLOR_MODE == 'grayscale':
           f"est généralement conçu pour des images RGB (3 canaux), mais COLOR_MODE='grayscale'. "
           f"Cela peut causer des erreurs ou de mauvaises performances. Envisagez COLOR_MODE='rgb'.")
 
-print("Configuration chargée et vérifiée.")
+# print("Configuration chargée et vérifiée.") # TODO: thank do not put print like that in python modules
