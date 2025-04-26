@@ -13,7 +13,6 @@ class DatabaseController:
 
     def __init__(self, path=r"data\database.db"):
         self.path = os.path.abspath(path)
-        print(f"Create db connection at: {self.path}")
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         # Log in the database
         self.conn = sqlite3.connect(self.path)

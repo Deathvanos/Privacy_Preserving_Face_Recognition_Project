@@ -6,7 +6,7 @@ import time
 
 # --- Import des modules du projet ---
 try:
-    from ..modules import data_loader
+    from ..modules.data_loader import data_loader
     from . import ml_models
     try:
         from .. import config
