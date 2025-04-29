@@ -31,8 +31,8 @@ class MLController:
     model = None
 
     # Paths
-    _db_path = 'data/database.db'
-    _ml_output = "data/models"
+    _db_path = 'data/gui_database.db'
+    _ml_output = "data/ml_models"
     _model_save_dir = f'{_ml_output}/trained'
     _log_dir = f'{_ml_output}/logs'
 
@@ -240,7 +240,7 @@ def prepare_data_train_model2(
 
     if split_strategy == 'stratified':
         data_splits = data_loader.split_data_stratified(
-            X, y, # TODO BRUCE: data_loader.split_data_stratified()
+            X, y,
             test_size=test_split_ratio,
             validation_size=validation_split_ratio,
             random_state=random_state
@@ -302,8 +302,8 @@ def prepare_data_train_model2(
 def create_model2(
     num_classes,
     input_shape: (int, int),
-    model_save_dir='models/trained/',
-    log_dir='models/logs/',
+    model_save_dir='ml_models/trained/',
+    log_dir='ml_models/logs/',
     model_name='simple_cnn_lfw_anony_v1',
     model_architecture='simple_cnn',
     learning_rate=0.001,
@@ -318,7 +318,7 @@ def create_model2(
     :param num_classes: generated in prepare_data_train_model()
     :param input_shape: same as in prepare_data_train_model()
     --- Paths & name ---
-    :param model_save_dir: Folder to save trained models, label encoder, etc.
+    :param model_save_dir: Folder to save trained ml_models, label encoder, etc.
     :param log_dir: Folder for TensorBoard logs (optional, leave blank or None to disable)
     :param model_name: Base name for saved files (model, logs, curves)
     :param model_architecture: Architecture choice in ml_models.py: 'simple_cnn', 'transfer_MobileNetV2', 'transfer_ResNet50', etc.
@@ -468,7 +468,7 @@ def train_model2(
     validation_data, callbacks,
     label_encoder,
     model_filepath,
-    model_save_dir='models/trained/',
+    model_save_dir='ml_models/trained/',
     model_name='simple_cnn_lfw_anony_v1',
     batch_size=32,
     epochs=50,
@@ -658,8 +658,8 @@ def _draw_accuracy_and_loss_curves(epochs_range, acc, loss, val_acc=None, val_lo
 
 def train_model(
     X, y, label_encoder,
-    model_save_dir='models/trained/',
-    log_dir='models/logs/',
+    model_save_dir='ml_models/trained/',
+    log_dir='ml_models/logs/',
     model_name='simple_cnn_lfw_anony_v1',
     input_shape=(100, 100, 1),
     split_strategy='stratified',
@@ -1019,7 +1019,7 @@ def preprocess_single_image(
 
 # --- Fonction Principale de Prédiction ---
 def predict_image(image_array: np.ndarray,
-                        model_save_dir: str = 'models/trained/',
+                        model_save_dir: str = 'ml_models/trained/',
                         model_name: str = 'simple_cnn_lfw_anony_v1',
                         input_shape: tuple = (100, 100, 1),
                         show_logs = False,

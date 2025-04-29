@@ -53,7 +53,7 @@ build/
 /analysis/analysis_results_auto_v2
 /analysis/show_test_subject
 /analysis/visualizations_subject_1
-/data/yalefaces
+/data/dataset-yalefaces
 /analysis/visualizations_subject_1_pipeline
 /analysis/analysis_results_grid_search_3d
 /src/modules/models/

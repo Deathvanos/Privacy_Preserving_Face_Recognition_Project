@@ -8,9 +8,9 @@ from typing import Optional
 
 # --- Import des modules du projet ---
 try:
-    from ..modules import data_loader
+    from src.modules import data_loader
     try:
-        from .. import config
+        from src import config
     except ImportError:
         print("Erreur: Impossible d'importer src/config.py.")
         exit()
