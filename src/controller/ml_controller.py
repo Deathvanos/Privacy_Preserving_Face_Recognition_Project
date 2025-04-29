@@ -1,9 +1,12 @@
+import base64
 import os
 import io
 import time
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
+
+
 
 from tensorflow import float32, convert_to_tensor
 from tensorflow.image import resize, rgb_to_grayscale, grayscale_to_rgb, convert_image_dtype
@@ -17,6 +20,8 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 
+from modules.image_preprocessing import preprocess_image
+from modules.utils_image import pillow_image_to_bytes
 from src.modules import data_loader
 from src.face_recognition import ml_models
 from src.modules.utils_image import base64_image_to_numpy
@@ -75,6 +80,12 @@ class MLController:
             self.X, self.y, self.label_encoder = data
         else:
             self.X, self.y, self.label_encoder = self.get_data_from_db(self._db_path)
+
+    @classmethod
+    def convert_file_storage_to_numpy(cls, file_storage: str):
+        image = Image.open(file_storage.stream)
+        # TODO : do all the preprocessing & the PEEP processing
+        return np.array(image)
 
 
     @classmethod
@@ -178,6 +189,9 @@ def formate_ml_image(
     if image.ndim == 2: # add channel dimension
         image = image[..., np.newaxis]
     channels = image.shape[2]
+    if channels == 4:
+        image = image[..., :3]
+        channels = image.shape[2]
     if channels == 3:
         if new_channels == 1: # Convert rgb to grayscale if input_shape asked
             image = convert_to_tensor(image)
@@ -443,6 +457,30 @@ def create_model(
     return model, callbacks, model_filepath, summary_text
 
 
+
+def text_to_image(text: str, font_size: int = 28, padding: int = 20):
+    font = ImageFont.load_default()
+    temp_img = Image.new("RGB", (1, 1))
+    draw = ImageDraw.Draw(temp_img)
+    lines = text.split('\n')
+    max_width = 0
+    line_height = 0
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        max_width = max(max_width, w)
+        line_height = max(line_height, h)
+    img_width = max_width + padding * 4
+    img_height = line_height * len(lines) + padding * 4
+    img = Image.new("RGB", (img_width, img_height), color="white")
+    draw = ImageDraw.Draw(img)
+    y = padding
+    for line in lines:
+        draw.text((padding, y), line, font=font, fill="black")
+        y += line_height
+    return img
+
 def _draw_accuracy_and_loss_curves2(epochs_range, acc, loss, val_acc=None, val_loss=None):
     plt.figure(figsize=(12, 5))
 
@@ -540,7 +578,10 @@ def train_model(
     eval_loss, eval_acc = model.evaluate(X_test, y_test)
     y_pred = np.argmax(model.predict(X_test), axis=1)
     cm = confusion_matrix(y_test, y_pred)
-    report = classification_report(y_test, y_pred, output_dict=True)
+    report = classification_report(y_test, y_pred, output_dict=False)
+
+    # Capture report to image
+    report = pillow_image_to_bytes(text_to_image(report))
 
     if history is not None:
         if show_logs: print("\n--- Displaying learning curves ---")

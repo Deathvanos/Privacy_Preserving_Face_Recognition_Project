@@ -16,7 +16,7 @@
         <div class="step" id="step-4"> <span>Generate PCA</span></div>
         <div class="step" id="step-5"> <span>Add noise</span></div>
         <div class="step" id="step-7"> <span>Save</span></div>
-        <div class="step" id="step-6"> <span>ML tests</span></div>
+        <div class="step" id="step-6"> <span>ML creation model</span></div>
     </div>
 
 
@@ -115,8 +115,15 @@
     <!-- ML tests -->
     <div class="panel hidden center" id="panel-6">
         <button type="button" class="button" onclick="step_ML(true)">Next</button>
+        <br><br>
+        <div id="ml_timer"></div>
+        <br>
+        <div id="ml_result"></div>
+        <br>
+        <div id="ml_result_graph" class="ml-image"></div>
+        <br>
+        <div id="ml_result_table" class="ml-image"></div>
     </div>
-
 
     <p id="error-down" class="error"></p>
 

@@ -1,4 +1,3 @@
-
 // ----------------------------------------------------------------------//
 // ----------------------------// ON LOAD //-----------------------------//
 // ----------------------------------------------------------------------//
@@ -155,7 +154,6 @@ function step_noise(go_next=false) {
 
 
 
-
 function step_save(go_next=false) {
     // Get data
     //...
@@ -168,12 +166,33 @@ function step_save(go_next=false) {
     call_process('5', success_method);
 }
 
-
+ML_RESULT = ""
 function step_ML(go_next=false) {
+    ml_timer = document.getElementById('ml_timer')
+    timer = 0
+
+    // Lance un timer qui met à jour le message chaque seconde
+    const countdownInterval = setInterval(() => {
+        timer += 1;
+        ml_timer.innerHTML = `Please wait (approx. 200 seconds), the model is training... <br>${timer}`;
+        // Facultatif : stoppe l'affichage si ça descend à 0
+        if (timer > 240) {
+            clearInterval(countdownInterval);
+            ml_timer.innerHTML = `Training took longer than expected... waiting for results.`;
+        }
+    }, 1000);
     // Get data
     //...
     // Prepare success method
-    function success_method(response, step) {}
+    function success_method(response, step) {
+        ML_RESULT = response
+        clearInterval(countdownInterval);
+        displayBase64Images([response.curves], "ml_result_graph")
+        displayBase64Images([response.classification_report], "ml_result_table")
+        ml_result = document.getElementById('ml_result')
+        ml_result.innerHTML = "accuracy: "+ Math.round(response.evaluation.accuracy*100)/100 + ", loss: " + Math.round(response.evaluation.loss*100)/100;
+
+    }
     // Call the server
     call_process('6', success_method);
 }
@@ -191,7 +210,7 @@ function call_process(step, success_method, formDataBase=null) {
         }
     }
     // Call the server
-    $.ajax({
+    const xhr = $.ajax({
         url: '/new_people',
         type: 'POST',
         data: formData,
@@ -207,6 +226,10 @@ function call_process(step, success_method, formDataBase=null) {
         error: function (error) {
             set_error(error.responseJSON ? error.responseJSON.error : 'Unknown error');
         }
+    });
+    // Annuler la requête si l'utilisateur quitte la page
+    window.addEventListener("beforeunload", () => {
+        xhr.abort();
     });
 }
 
@@ -284,4 +307,27 @@ function initializeImageSizeControl(valueId, unitID, start, maxIntValue) {
     });
     // Init change reader
     updateLimits();
+}
+
+
+// Lier le bouton Capture
+captureBtn = document.getElementById('capture-btn');
+captureBtn.addEventListener('click', () => {
+    const maxPhotos = 10;  // ici tu peux changer dynamiquement
+    const delay = 100;     // délai entre les captures en ms
+    startPhotoCapture(maxPhotos, delay);
+});
+
+
+
+// Function to render a list of base64 images
+function displayBase64Images(base64List, id_balise) {
+    const container = document.getElementById(id_balise);
+    container.innerHTML = "";
+    base64List.forEach((base64Str, index) => {
+        const img = document.createElement("img");
+        img.src = `data:image/jpeg;base64,${base64Str}`
+        img.alt = `Image ${index + 1}`;
+        container.appendChild(img);
+    });
 }

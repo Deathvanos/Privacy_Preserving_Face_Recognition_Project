@@ -200,6 +200,8 @@ def pillow_image_to_bytes(element: PIL.Image.Image|list[PIL.Image.Image]) -> str
     def convert(image):
         if not isinstance(image, Image.Image):
             raise ValueError("'image' must be a valid PIL Image object.")
+        if image.mode == 'RGBA':
+            image = image.convert('RGB')
         buffer = io.BytesIO()
         image.save(buffer, format='JPEG')
         return base64.b64encode(buffer.getvalue()).decode()

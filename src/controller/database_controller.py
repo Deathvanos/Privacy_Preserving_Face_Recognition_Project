@@ -11,7 +11,7 @@ class DatabaseController:
     _column_id = "id"
     _column_data = "array"
 
-    def __init__(self, path=r"data\database.db"):
+    def __init__(self, path=r"data\gui_database.db"):
         self.path = os.path.abspath(path)
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         # Log in the database

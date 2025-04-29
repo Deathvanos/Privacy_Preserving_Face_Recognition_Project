@@ -22,9 +22,11 @@ The aim of the project is the development a prototype that take a photo and matc
 # ---------------------------------------------------------------------------
 from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
-import src.config as config
-from controller.user_creation_controller import UserCreationController
 from os import listdir
+
+from controller.ml_controller import MLController
+from controller.user_creation_controller import UserCreationController
+from modules.utils_image import pillow_image_to_bytes
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
@@ -34,6 +36,7 @@ assets.url = app.static_url_path
 for filename in listdir(f"src/{assets.url}/css"):
     if filename.endswith('.scss'):
         name = filename[:-5]
+        print(f"Registering SCSS bundle for {name}")
         scss = Bundle(f"css/{filename}", filters='libsass', output=f'css/{name}.css')
         assets.register(f"scss_{name}", scss)
 
@@ -55,10 +58,9 @@ def show_database_page():
     user_list = UserCreationController.get_user_list()
     return render_template("show_database.html", user_list=user_list)
 
-@app.route("/analysis")
-def analysis_page():
-    user_list = UserCreationController.get_user_list()
-    return render_template("analysis.html", user_list=user_list)
+@app.route("/utils")
+def utils_page():
+    return render_template("utils.html")
 
 @app.route("/new_people")
 def new_people_init_page():
@@ -104,7 +106,16 @@ def new_people_processing_page():
         case 5:
             response, code = UserCreationController.save_user_in_db()
         case 6:
-            response, code = {'error': "ML not implemented"}, 400
+            mlc = MLController()
+            try: mlc.prepare_data()
+            except: return {'error': "Error in prepare_data"}, 400
+            try: mlc.create_model()
+            except: return {'error': "Error in create_model"}, 400
+            try: result = mlc.train_model()
+            except: return {'error': "Error in train_model"}, 400
+            result['curves'] = pillow_image_to_bytes(result['curves'])
+            result['confusion_matrix'] = result['confusion_matrix'].tolist()
+            response, code = ({'duration': mlc.duration} | result, 200)
     return jsonify(response), code
 
 
@@ -129,20 +140,24 @@ def delete_user_action():
     return jsonify({'result': 'end', 'user_id':user_id, "nb_rows_delete": result}), 200
 
 
-@app.route("/recontruct_user", methods=['POST'])
-def recontruct_user_action():
-    print(request.form)
-    print(request.files)
-    print("recontruct_user called")
-    user_id = request.form.get('user_id')
-    # Return good execution message
-    return jsonify({'result': 'end', 'user_id':user_id}), 200
-
 
 @app.route('/api/check_photo', methods=['POST'])
 def check_photo():
-    import random
-    return jsonify({'result': random.choice([True, False])})
+    print(request.form)
+    print(request.files)
+    # Retrieve the image
+    input = request.files.getlist('fileInput')
+    if not input: return jsonify({'error': 'Please reload the page'}), 400
+    input= input[0]
+    image = MLController.convert_file_storage_to_numpy(input)
+    print(image.shape)
+
+    # Use the ML prediction
+    mlc = MLController()
+    result = mlc.predict_image(image)
+    prediction, trust = int(result[0]), round(float(result[1]), 2)
+    print(f"Prediction: {prediction}, Trust: {trust}")
+    return jsonify({"prediction":prediction, "trust": trust}), 200
 
 
 
