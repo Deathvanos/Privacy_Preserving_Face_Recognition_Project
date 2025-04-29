@@ -27,7 +27,7 @@ from controller.user_creation_controller import UserCreationController
 from os import listdir
 
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
+app.secret_key = SECRET_KEY = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
 # Configure SCSS bundle
 assets = Environment(app)
 assets.url = app.static_url_path
