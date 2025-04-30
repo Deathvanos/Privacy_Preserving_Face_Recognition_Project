@@ -75,7 +75,7 @@ def show_comparison(original_images, individual_anonymized, nb=5):
     print(f"📸 Visualisation sauvegardée dans {output_path}")
 
 if __name__ == "__main__":
-    input_folder = "/Users/elodiechen/PycharmProjects/Privacy_Preserving_Face_Recognition_Project/data/yalefaces"
+    input_folder = "/Users/elodiechen/PycharmProjects/Privacy_Preserving_Face_Recognition_Project/data/dataset-yalefaces"
     output_folder = "/Users/elodiechen/PycharmProjects/Privacy_Preserving_Face_Recognition_Project/data/k_same_pixel_faces"
     k = 3  # nombre de voisins (ou groupe de k images)
 

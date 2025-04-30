@@ -200,6 +200,8 @@ def pillow_image_to_bytes(element: PIL.Image.Image|list[PIL.Image.Image]) -> str
     def convert(image):
         if not isinstance(image, Image.Image):
             raise ValueError("'image' must be a valid PIL Image object.")
+        if image.mode == 'RGBA':
+            image = image.convert('RGB')
         buffer = io.BytesIO()
         image.save(buffer, format='JPEG')
         return base64.b64encode(buffer.getvalue()).decode()
@@ -240,3 +242,16 @@ def numpy_image_to_pillow(element: np.ndarray | list[np.ndarray], resized_size: 
     else:
         return convert(element)
 
+
+def base64_image_to_numpy(base64_element):
+    def decode_and_convert(b64_string):
+        image_data = base64.b64decode(b64_string)
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        return np.array(image)
+
+    if isinstance(base64_element, str):
+        return decode_and_convert(base64_element)
+    elif isinstance(base64_element, list):
+        return [decode_and_convert(b64) for b64 in base64_element]
+    else:
+        raise TypeError("L'entrée doit être une chaîne base64 ou une liste de chaînes base64.")

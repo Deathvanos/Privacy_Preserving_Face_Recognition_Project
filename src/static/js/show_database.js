@@ -1,3 +1,5 @@
+
+USER = ""
 function load_user_data() {
     // Get data
     const param_selectBox = document.getElementById('selectBox');
@@ -5,6 +7,7 @@ function load_user_data() {
     formData.append('user_id', param_selectBox.value);
     // Prepare success method
     function success_method(response) {
+        USER = response
         htmlContent = "<br>Identification number: " + response.user_id + "<br>Values:<br><br>";
         balise = document.getElementById('db_user')
         balise.innerHTML = htmlContent;

@@ -7,7 +7,7 @@ from src.modules.utils_image import load_images  # Import the load_images functi
 class TestEigenfaceGenerator(unittest.TestCase):
 
     def setUp(self):
-        image_folder = "data/yalefaces"
+        image_folder = "data/dataset-yalefaces"
         # Use the load_images function from utils.py
         self.images = load_images(image_folder, subject_prefix="subject01")
         self.generator = EigenfaceGenerator(self.images, n_components=len(self.images))

@@ -6,10 +6,10 @@ import time
 
 # --- Import des modules du projet ---
 try:
-    from ..modules import data_loader
-    from . import ml_models
+    from src.modules import data_loader
+    from src.face_recognition import ml_models
     try:
-        from .. import config
+        from src import config
     except ImportError:
         print("Erreur: Impossible d'importer src/config.py.")
         print("Veuillez vous assurer que le fichier existe et ne contient pas d'erreurs de syntaxe.")

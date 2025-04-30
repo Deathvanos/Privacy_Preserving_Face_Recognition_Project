@@ -1,16 +1,12 @@
-# Flask config
-SECRET_KEY = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
-
 IMAGE_SIZE = (100, 100)
-DATABASE_PATH = "../data/database"
 
 
-
-# --- Chemins et Noms ---
 # Chemin vers le dossier contenant les images anonymisées (structure plate)
 # Utilise un chemin relatif depuis la racine du projet
 ANONY_IMAGES_PATH = 'data/reconstructed_pipeline'
 
+
+# --- Chemins et Noms ---
 # Dossier pour sauvegarder les modèles entraînés, l'encodeur de labels, etc.
 MODEL_SAVE_DIR = 'models/trained/'
 
@@ -84,4 +80,4 @@ if MODEL_ARCHITECTURE.startswith('transfer_') and COLOR_MODE == 'grayscale':
           f"est généralement conçu pour des images RGB (3 canaux), mais COLOR_MODE='grayscale'. "
           f"Cela peut causer des erreurs ou de mauvaises performances. Envisagez COLOR_MODE='rgb'.")
 
-print("Configuration chargée et vérifiée.")
+# print("Configuration chargée et vérifiée.") # TODO: thank do not put print like that in python modules

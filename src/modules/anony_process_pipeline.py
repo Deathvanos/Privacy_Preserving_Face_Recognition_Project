@@ -32,14 +32,17 @@ except ImportError:
     print("Warning: Using fallback imports and default IMAGE_SIZE.")
 
 
-logging.basicConfig(level=logging.INFO,
-
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Répertoire pour enregistrer les images reconstruites finales (dossier unique)
-RECONSTRUCTED_DIR = "../../data/reconstructed_pipeline"
-os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# TODO: If hard coded - May cause some problems depending on where the console is executed.
+RECONSTRUCTED_DIR = ''
+def set_reconstructed_dir(reconstructed_dir="../../data/reconstructed_pipeline"):
+    global RECONSTRUCTED_DIR
+    RECONSTRUCTED_DIR = reconstructed_dir
+    os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)
 
 
 # --- Fonctions de Sauvegarde ---
@@ -66,7 +69,7 @@ def save_final_reconstructed_images(subject_id: str, images: List[Optional[str]]
 
             # Nouveau nom de fichier: reconstructed_<id_subject>_<num_img>.png
             # Utilise l'index 'i' comme num_img pour ce sujet
-            filename = f"reconstructed_{safe_subject_id}_{i}.png"
+            filename = f"reconstructed_{int(safe_subject_id)+1}_{int(i)+1}.png"
             full_path = os.path.join(RECONSTRUCTED_DIR, filename)
 
             img.save(full_path)

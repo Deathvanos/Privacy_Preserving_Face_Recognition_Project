@@ -170,4 +170,9 @@
   justify-content: center;
 }
 
+.ml-image {
+  display: flex;
+  justify-content: center;
+}
+
 /*# sourceMappingURL=new_people.css.map */

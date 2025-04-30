@@ -38,22 +38,10 @@ build/
 *.egg-info/
 
 # Other
-/documentation/ISEP_Project.txt
 /documentation/ISEP_Projects_list.xlsx
-/documentation/Etat_avancements-180225.docx
-/documentation/Synthese-reunion-180225.docx
-/analysis/noised_image_test/
-/analysis/performance_tests/
-/analysis/perf_results/
-/analysis/output_graphs/
-/src/modules/logs
-/src/modules/show_test_subject
-/data
+/documentation/ISEP_Project.txt
 
-/analysis/analysis_results_auto_v2
-/analysis/show_test_subject
-/analysis/visualizations_subject_1
-/data/yalefaces
 /analysis/visualizations_subject_1_pipeline
-/analysis/analysis_results_grid_search_3d
-/src/modules/models/
+
+/data/gui_database.db
+/data/ml_models/

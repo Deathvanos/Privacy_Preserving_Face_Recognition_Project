@@ -1,9 +1,7 @@
-
-
 // Access the DOM elements
 const video = document.getElementById('camera');
 const canvas = document.getElementById('photo');
-const captureBtn = document.getElementById('capture-btn');
+let captureBtn = document.getElementById('capture-btn');
 const context = canvas.getContext('2d');
 
 // Create a container to show the captured images
@@ -59,12 +57,10 @@ function capturePhoto() {
 }
 
 
-// Capture photos on button click
-captureBtn.addEventListener('click', () => {
+// Fonction qui capture un certain nombre de photos
+function startPhotoCapture(maxPhotos = 10, delay = 100) {
     clearImages(); // Clear previous photos
     let photosTaken = 0;
-    const maxPhotos = 10; // number of photos
-    const delay = 100; // milliseconds between photos
 
     const intervalId = setInterval(() => {
         if (photosTaken >= maxPhotos) {
@@ -87,7 +83,20 @@ captureBtn.addEventListener('click', () => {
         // Counter
         photosTaken += 1;
     }, delay);
+}
+
+// Lier le bouton Capture
+/*
+captureBtn = document.getElementById('capture-btn');
+captureBtn.addEventListener('click', () => {
+    const maxPhotos = 10;  // ici tu peux changer dynamiquement
+    const delay = 100;     // délai entre les captures en ms
+    startPhotoCapture(MAX_PHOTOS, delay);
 });
+*/
+
+
+
 
 
 
