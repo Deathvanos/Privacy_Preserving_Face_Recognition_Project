@@ -1,0 +1,35 @@
+{% extends 'tpl/template.html' %}
+{% block title %}Analysis page{% endblock %}
+{% block head %}{% endblock %}
+
+{% block header %}{% include 'tpl/header.html' %}{% endblock %}
+
+{% block body %}
+    <h1 class="center">Utils page</h1>
+    <p id="msg" class="center"></p>
+    <p class="center">How to test a dataset ? ⚠️ warning: you will lost your last database ⚠️</p>
+
+    <ul style="margin-inline:10%">
+        <li>Fistly, load a dataset.
+        </li>
+        <li>Secondly, run the ML (go Add page — no need to add a new user).
+            Wait for the ML train to finish, it'd take a few minutes depending on your computer.
+        </li>
+        <li>Last, you can test the ML tests (in the Search page).
+            Select an image in thisProjectFolder/data/yourDatasetName/ to test.
+        </li>
+    </ul>
+
+    <div class="center">
+        <button type="button" class="button" id="load_yaleface" onclick="load_yaleface()">Load yaleface database</button>
+        <button type="button" class="button" id="load_lfw" onclick="load_lfw()">Load lfw database</button>
+        <button type="button" class="button" id="load_lfw" onclick="delete_db()">Delete database</button>
+    </div>
+
+
+{% endblock %}
+
+{% block footer %}
+    <script src="{{ url_for('static', filename='js/dataset_loader.js') }}"></script>
+    {% include 'tpl/footer.html' %}
+{% endblock %}

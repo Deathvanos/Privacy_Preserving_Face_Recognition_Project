@@ -24,8 +24,9 @@ from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
 from os import listdir
 
-from controller.ml_controller import MLController
-from controller.user_creation_controller import UserCreationController
+from src.controller.ml_controller import MLController
+from src.controller.user_creation_controller import UserCreationController
+from src.controller.database_controller import DatabaseController
 from modules.utils_image import pillow_image_to_bytes
 
 app = Flask(__name__)
@@ -57,9 +58,9 @@ def show_database_page():
     user_list = UserCreationController.get_user_list()
     return render_template("show_database.html", user_list=user_list)
 
-@app.route("/utils")
-def utils_page():
-    return render_template("utils.html")
+@app.route("/dataset_loader")
+def dataset_loader_page():
+    return render_template("dataset_loader.html")
 
 @app.route("/new_people")
 def new_people_init_page():
@@ -157,6 +158,24 @@ def check_photo():
     prediction, trust = int(result[0]), round(float(result[1]), 2)
     print(f"Prediction: {prediction}, Trust: {trust}")
     return jsonify({"prediction":prediction, "trust": trust}), 200
+
+
+@app.route('/api/load_yaleface', methods=['POST'])
+def load_yaleface():
+    DatabaseController().load_yalefaces_dataset()
+    return jsonify({"result": "ok"}), 200
+
+@app.route('/api/load_lfw', methods=['POST'])
+def load_lfw():
+    DatabaseController().load_lfw_dataset()
+    return jsonify({"result": "ok"}), 200
+
+@app.route('/api/delete_db', methods=['POST'])
+def delete_db():
+    DatabaseController().reset_database()
+    return jsonify({"result": "ok"}), 200
+
+
 
 
 
