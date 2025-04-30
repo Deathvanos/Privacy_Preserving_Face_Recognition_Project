@@ -1,3 +1,5 @@
+
+USER = ""
 function load_user_data() {
     // Get data
     const param_selectBox = document.getElementById('selectBox');
@@ -5,10 +7,12 @@ function load_user_data() {
     formData.append('user_id', param_selectBox.value);
     // Prepare success method
     function success_method(response) {
+        USER = response
         htmlContent = "<br>Identification number: " + response.user_id + "<br>Values:<br><br>";
         balise = document.getElementById('db_user')
         balise.innerHTML = htmlContent;
-        displayNumpyArray(response.user_data, "db_user_table")
+        // print bdd values
+        displayBase64Images(response.user_data, "db_user_table")
         document.getElementById('user_container').hidden = false;
         set_error()
     }
@@ -32,18 +36,7 @@ function delete_user_request() {
 }
 
 
-function reconstruct_user_request() {
-    // Get data
-    const param_selectBox = document.getElementById('selectBox');
-    const formData = new FormData();
-    formData.append('user_id', param_selectBox.value);
-    // Prepare success method
-    function success_method(response) {
-        console.log("reconstruct_user_request ended");
-    }
-    // Call the server
-    call_process('/recontruct_user', success_method, formData);
-}
+
 
 
 function call_process(url, success_method, formData=null) {
@@ -101,3 +94,25 @@ function displayNumpyArray(array, id_balise) {
     container.appendChild(table);
 }
 
+// Function to render a list of base64 images
+function displayBase64Images(base64List, id_balise) {
+    const container = document.getElementById(id_balise);
+    container.innerHTML = "";
+    base64List.forEach((base64Str, index) => {
+        const img = document.createElement("img");
+        img.src = `data:image/jpeg;base64,${base64Str}`
+        img.alt = `Image ${index + 1}`;
+        container.appendChild(img);
+    });
+}
+
+function displayRowData(data, id_balise) {
+    const container = document.getElementById(id_balise);
+    container.innerHTML = "";
+    data.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.textContent = item;
+        div.style.marginBottom = "8px";
+        container.appendChild(div);
+    });
+}

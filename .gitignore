@@ -38,10 +38,10 @@ build/
 *.egg-info/
 
 # Other
-/documentation/ISEP_Project.txt
 /documentation/ISEP_Projects_list.xlsx
-/documentation/Etat_avancements-180225.docx
-/documentation/Synthese-reunion-180225.docx
-/sandbox/noised_image_test/
-/sandbox/performance_tests/
-/data/database.db
+/documentation/ISEP_Project.txt
+
+/analysis/visualizations_subject_1_pipeline
+
+/data/gui_database.db
+/data/ml_models/

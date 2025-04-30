@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 """
 This project will explore the intersection of Machine Learning (ML) and data privacy.
-The student will investigate data anonymization techniques, such as differential privacy and k-anonymity, to enhance the privacy of ML models for facial recognition.
+The student will investigate data anonymization techniques, such as differential privacy and k-anonymity, to enhance the privacy of ML ml_models for facial recognition.
 The aim of the project is the development a prototype that take a photo and match it with the one in the anonymized database.
 """
 # ---------------------------------------------------------------------------
@@ -16,21 +16,21 @@ The aim of the project is the development a prototype that take a photo and matc
 # * https://www.geeksforgeeks.org/single-page-portfolio-using-flask/
 # * https://realpython.com/flask-blueprint/
 # * https://www.geeksforgeeks.org/flask-rendering-templates/
-# Usefully commands
-# $ pip freeze > requirements.txt; poetry init
+# Usefully commands (pip install pipreqs)
+# $ pipreqs  > requirements.txt
+# $ poetry init # for generate .toml file
 # ---------------------------------------------------------------------------
-from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory, session
+from flask import Flask, render_template, jsonify, request
 from flask_assets import Environment, Bundle
-from config import *
-from modules import utils
-
-from modules.gui_controller import GUIController
 from os import listdir
 
+from src.controller.ml_controller import MLController
+from src.controller.user_creation_controller import UserCreationController
+from src.controller.database_controller import DatabaseController
+from modules.utils_image import pillow_image_to_bytes
 
 app = Flask(__name__)
-app.config.from_object(Config)
-app.secret_key = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
+app.secret_key = SECRET_KEY = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
 # Configure SCSS bundle
 assets = Environment(app)
 assets.url = app.static_url_path
@@ -51,116 +51,81 @@ def index_page():
 
 @app.route("/search_people")
 def search_people_page():
-    user_list = GUIController.get_user_list()
-    return render_template("search_people.html", user_list=user_list)
+    return render_template("search_people.html")
 
 @app.route("/show_database")
 def show_database_page():
-    user_list = GUIController.get_user_list()
+    user_list = UserCreationController.get_user_list()
     return render_template("show_database.html", user_list=user_list)
 
-
+@app.route("/dataset_loader")
+def dataset_loader_page():
+    return render_template("dataset_loader.html")
 
 @app.route("/new_people")
 def new_people_init_page():
-    GUIController.delete_temp_file()
+    #GUIController.delete_temp_file()
     return render_template("new_people.html")
+
+
+# ---------------------------------------------------------------------------
+# ------------------------- BACK POST FUNCTIONS ----------------------------------
+# ---------------------------------------------------------------------------
+
 
 @app.route("/new_people", methods=['POST'])
 def new_people_processing_page():
+    # Print income values
     print(request.form)
     print(request.files)
     # Check step value
-    step = request.form.get('step')
-    if not step:
-        return jsonify({'error': 'Step parameter is missing'}), 400
-    try: step = int(step)
-    except: return jsonify({'step': step, 'error': 'step is not an integer'}), 400
-    # Initialisation of the Controller
-    if step == 0:
-        # Get user images
-        files = request.files.getlist('fileInput')
-        if not files:
-            return jsonify({'error': 'No file part in the request'}), 400
-        # Create new Controller:
-        c = GUIController(files)
-        c.save_to_file()
-        return jsonify({'step':step, 'result': 'OK'})
-    # Retrieve controller
-    ctrl = GUIController.load_from_file()
-    if not ctrl:
-        return jsonify({'step':step, 'error': 'No controller initialized'}), 400
-    # Do the requested action
-    imgs = []
-    if ctrl.can_run_step(int(step)):
-        match step:
-            case 1:
-                ctrl.s1_apply_k_same_pixel()
-                imgs = ctrl.get_image_pixelated("bytes")
-            case 2:
-                # Check width value
-                width = request.form.get('width')
-                if not width: return jsonify({'error': 'width parameter is missing'}), 400
-                try: width = int(width)
-                except: return jsonify({'step': step, 'error': 'width is not a int'}), 400
-                # Check height value
-                height = request.form.get('height')
-                if not height: return jsonify({'error': 'height parameter is missing'}), 400
-                try: height = int(height)
-                except: return jsonify({'step': step, 'error': 'height is not a int'}), 400
-                # Apply the process
-                ctrl.s2_resize_images((width, height))
-                imgs = ctrl.get_image_resized("bytes")
-            case 3:
-                # Check pca_components value
-                pca_components = request.form.get('pca_components')
-                if not pca_components: return jsonify({'error': 'pca_components parameter is missing'}), 400
-                try: pca_components = int(pca_components)
-                except: return jsonify({'step': step, 'error': 'pca_components is not a int'}), 400
-                max_pca = ctrl.get_image_number()
-                if pca_components > max_pca:
-                    return jsonify({'step': step, 'error': f'pca_components should be between 0 and {max_pca}'}), 400
-                # Apply the process
-                ctrl.s3_generate_pca_components(pca_components)
-                imgs = ctrl.get_image_eigenface("bytes")
-            case 4:
-                # Check epsilon value
-                epsilon = request.form.get('epsilon')
-                if not epsilon: return jsonify({'error': 'epsilon parameter is missing'}), 400
-                try: epsilon = float(epsilon)
-                except: return jsonify({'step': step, 'error': 'epsilon is not a float'}), 400
-                # Apply the process
-                ctrl.s4_apply_differential_privacy(epsilon)
-                imgs = ctrl.get_image_noised("bytes")
-            case 5:
-                # Apply the process
-                ctrl.s5_launch_ml()
-            case 6:
-                # Apply the process
-                user_id = ctrl.s6_save_user()
-                # No modification in the Controller, we can skeep now
-                return jsonify({'step': step, 'result': 'end', 'user_id': user_id}), 200
-
-    else:
-         return jsonify({'step': step, 'error': "Can't run this step"}), 400
+    try: step = int(request.form['step'])
+    except KeyError: return jsonify({'error': 'Step parameter is missing'}), 400
+    except (TypeError, ValueError): return jsonify({'error': 'Step parameter must be an integer'}), 400
+    # Resolve the step number
+    response, code = {'error': "step didn't match"}, 400
+    match step:
+        case 1:
+            inputs = request.files.getlist('fileInput')
+            inputs = inputs if inputs else None
+            img_size_value = request.form.get('img_size_value')
+            img_size_value = (img_size_value, img_size_value) if img_size_value else None
+            img_size_unit = request.form.get('img_size_unit')
+            img_size_unit = img_size_unit if img_size_unit else None
+            response, code = UserCreationController.initialize_new_user(inputs, img_size_value, img_size_unit)
+        case 2:
+            value = request.form.get('k_same_value')
+            value = value if value else None
+            response, code = UserCreationController.apply_k_same_pixel(value)
+        case 3:
+            inputs = request.form.get('pca_components')
+            response, code = UserCreationController.generate_pca_components(inputs)
+        case 4:
+            inputs = request.form.get('epsilon')
+            response, code = UserCreationController.apply_differential_privacy(inputs)
+        case 5:
+            response, code = UserCreationController.save_user_in_db()
+        case 6:
+            mlc = MLController()
+            try: mlc.prepare_data()
+            except: return {'error': "Error in prepare_data"}, 400
+            try: mlc.create_model()
+            except: return {'error': "Error in create_model"}, 400
+            try: result = mlc.train_model()
+            except: return {'error': "Error in train_model"}, 400
+            result['curves'] = pillow_image_to_bytes(result['curves'])
+            result['confusion_matrix'] = result['confusion_matrix'].tolist()
+            response, code = ({'duration': mlc.duration} | result, 200)
+    return jsonify(response), code
 
 
-    # Save new modifications of the Controller
-    ctrl.save_to_file()
-    # Return good execution message
-    return jsonify({'step':step, 'result': 'end', 'images':imgs}), 200
-
-
-# ---------------------------------------------------------------------------
-# ------------------------- BACK FUNCTIONS ----------------------------------
-# ---------------------------------------------------------------------------
 
 @app.route("/get_user_list", methods=['POST'])
 def get_user_list_action():
     print(request.form)
     print(request.files)
     user_id = request.form.get('user_id')
-    user_data = GUIController.get_user_data(int(user_id))
+    user_data = UserCreationController.get_user_data(int(user_id))
     # Return good execution message
     return jsonify({'result': 'end', 'user_id':user_id, "user_data":user_data.tolist()}), 200
 
@@ -170,24 +135,47 @@ def delete_user_action():
     print(request.files)
     print("delete_user called")
     user_id = request.form.get('user_id')
-    result = GUIController.delete_user(int(user_id))
+    result = UserCreationController.delete_user(int(user_id))
     # Return good execution message
     return jsonify({'result': 'end', 'user_id':user_id, "nb_rows_delete": result}), 200
 
 
-@app.route("/recontruct_user", methods=['POST'])
-def recontruct_user_action():
-    print(request.form)
-    print(request.files)
-    print("recontruct_user called")
-    user_id = request.form.get('user_id')
-    # Return good execution message
-    return jsonify({'result': 'end', 'user_id':user_id}), 200
-
 
 @app.route('/api/check_photo', methods=['POST'])
 def check_photo():
-    return jsonify({'result': utils.random_bool()})
+    print(request.form)
+    print(request.files)
+    # Retrieve the image
+    input = request.files.getlist('fileInput')
+    if not input: return jsonify({'error': 'Please reload the page'}), 400
+    input= input[0]
+    image = MLController.convert_file_storage_to_numpy(input)
+    print(image.shape)
+
+    # Use the ML prediction
+    mlc = MLController()
+    result = mlc.predict_image(image)
+    prediction, trust = int(result[0]), round(float(result[1]), 2)
+    print(f"Prediction: {prediction}, Trust: {trust}")
+    return jsonify({"prediction":prediction, "trust": trust}), 200
+
+
+@app.route('/api/load_yaleface', methods=['POST'])
+def load_yaleface():
+    DatabaseController().load_yalefaces_dataset()
+    return jsonify({"result": "ok"}), 200
+
+@app.route('/api/load_lfw', methods=['POST'])
+def load_lfw():
+    DatabaseController().load_lfw_dataset()
+    return jsonify({"result": "ok"}), 200
+
+@app.route('/api/delete_db', methods=['POST'])
+def delete_db():
+    DatabaseController().reset_database()
+    return jsonify({"result": "ok"}), 200
+
+
 
 
 
