@@ -45,3 +45,5 @@ build/
 
 /data/gui_database.db
 /data/ml_models/
+/data/dataset-lfw_reconstructed/
+/data/dataset-yalefaces/

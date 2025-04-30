@@ -6,7 +6,7 @@ import numpy as np
 
 import src.modules.anony_process_pipeline as pipeline
 from src.modules.utils_image import pillow_image_to_bytes, filestorage_image_to_numpy, numpy_image_to_pillow
-from controller.database_controller import DatabaseController
+from src.controller.database_controller import DatabaseController
 
 class UserCreationController:
 

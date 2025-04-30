@@ -7,7 +7,7 @@ We have investigated data anonymization techniques, such as differential privacy
 The aim of the project is the development a prototype that take a photo and match it with the one in the anonymized database.
 
 ## Setup
-Use Python 3.12
+Use Python 3.12 (https://www.python.org/downloads/)
 
 ```shell
 $ git clone https://github.com/Deathvanos/Privacy_preserving_face_recognition
@@ -17,6 +17,7 @@ $ .\venv\Scripts\activate
 $ pip install -r requirements.txt
 $ .\setenv.ps1
 $ flask run
+$ deactivate
 ```
 
 # Software architecture
