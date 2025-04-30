@@ -20,12 +20,11 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 
-from modules.image_preprocessing import preprocess_image
-from modules.utils_image import pillow_image_to_bytes
+from src.modules.utils_image import pillow_image_to_bytes
 from src.modules import data_loader
 from src.face_recognition import ml_models
 from src.modules.utils_image import base64_image_to_numpy
-from controller.database_controller import DatabaseController
+from src.controller.database_controller import DatabaseController
 
 
 

@@ -17,7 +17,7 @@ The aim of the project is the development a prototype that take a photo and matc
 # * https://realpython.com/flask-blueprint/
 # * https://www.geeksforgeeks.org/flask-rendering-templates/
 # Usefully commands (pip install pipreqs)
-# $ pipreqs  > requirements.txt
+# $ pipreqs  > requirements.txt --force
 # $ poetry init # for generate .toml file
 # ---------------------------------------------------------------------------
 from flask import Flask, render_template, jsonify, request
@@ -27,7 +27,7 @@ from os import listdir
 from src.controller.ml_controller import MLController
 from src.controller.user_creation_controller import UserCreationController
 from src.controller.database_controller import DatabaseController
-from modules.utils_image import pillow_image_to_bytes
+from src.modules.utils_image import pillow_image_to_bytes
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY = b'\x1f\x0e\x0c\xa6\xdbt\x01S\xa0$r\xf8$\xb4\xe3\x8a\xcf\xe0\\\x00M0H\x01'
