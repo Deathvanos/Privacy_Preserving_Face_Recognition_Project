@@ -22,7 +22,7 @@ $ deactivate
 
 # Software architecture
 
-The GUI files are organized into six folders:
+The src/ folder is organized into six folders:
 - The folder ``templates``, which contains standard HTML pages (frontend)
 - The folder ``static/js``, which contains JavaScript functions used by a single page
 - The folder ``static/css``, which contains style pages used by a single page
