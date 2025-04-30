@@ -176,10 +176,10 @@ function step_ML(go_next=false) {
         timer += 1;
         ml_timer.innerHTML = `Please wait (approx. 200 seconds), the model is training... <br>${timer}`;
         // Facultatif : stoppe l'affichage si ça descend à 0
-        if (timer > 240) {
-            clearInterval(countdownInterval);
-            ml_timer.innerHTML = `Training took longer than expected... waiting for results.`;
-        }
+        if (timer > 1500) {ml_timer.innerHTML = `Give up man... <br>${timer}`;}
+        if (timer > 1000) {ml_timer.innerHTML = `Your laptop is a trash to be so long... <br>${timer}`;}
+        if (timer > 500) {ml_timer.innerHTML = `It's very long bro... <br>${timer}`;}
+        else if (timer > 240) {ml_timer.innerHTML = `Training took longer than expected... <br>${timer}`;}
     }, 1000);
     // Get data
     //...

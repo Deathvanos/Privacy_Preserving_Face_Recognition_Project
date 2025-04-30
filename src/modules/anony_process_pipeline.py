@@ -69,7 +69,7 @@ def save_final_reconstructed_images(subject_id: str, images: List[Optional[str]]
 
             # Nouveau nom de fichier: reconstructed_<id_subject>_<num_img>.png
             # Utilise l'index 'i' comme num_img pour ce sujet
-            filename = f"reconstructed_{safe_subject_id}_{i}.png"
+            filename = f"reconstructed_{int(safe_subject_id)+1}_{int(i)+1}.png"
             full_path = os.path.join(RECONSTRUCTED_DIR, filename)
 
             img.save(full_path)

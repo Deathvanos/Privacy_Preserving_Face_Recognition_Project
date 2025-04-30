@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 from sklearn.datasets import fetch_lfw_people
 
-import anony_process_pipeline
+from src.modules import anony_process_pipeline
 
 RECONSTRUCTED_DIR = "../../data/dataset-lfw_reconstructed"
 os.makedirs(RECONSTRUCTED_DIR, exist_ok=True)

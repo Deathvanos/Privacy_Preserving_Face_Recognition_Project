@@ -36,7 +36,6 @@ assets.url = app.static_url_path
 for filename in listdir(f"src/{assets.url}/css"):
     if filename.endswith('.scss'):
         name = filename[:-5]
-        print(f"Registering SCSS bundle for {name}")
         scss = Bundle(f"css/{filename}", filters='libsass', output=f'css/{name}.css')
         assets.register(f"scss_{name}", scss)
 

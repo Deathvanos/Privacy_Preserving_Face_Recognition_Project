@@ -53,7 +53,7 @@ function checkPhoto() {
             const res = document.getElementById('result')
             console.log(data);
             res.innerHTML = `Prediction: ${data.prediction} | Trust: ${data.trust}`;
-            if (data.trust > 0.8) {
+            if (data.trust >= 0.8) {
                 res.style.backgroundColor = '#5dca38';
             }
             else {
